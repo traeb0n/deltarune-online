@@ -62,6 +62,15 @@ function mp_battle_reset()
         global.mp_rhp_known[s] = 0;
         global.mp_hp_sent[s] = -99999;
     }
+    global.mp_soul_x = array_create(8, 0);
+    global.mp_soul_y = array_create(8, 0);
+    global.mp_soul_tx = array_create(8, 0);
+    global.mp_soul_ty = array_create(8, 0);
+    global.mp_soul_f = array_create(8, -9999);
+    global.mp_soul_seen = 0;
+    global.mp_spec_on = false;
+    global.mp_spec_target = -1;
+    global.mp_spec_alpha = 1;
 }
 
 function mp_battle_on()
@@ -213,6 +222,24 @@ function mp_turn_gate()
 
 function mp_battle_recv(type, from, b)
 {
+    if (type == 47) // where the sender's SOUL is
+    {
+        var sx = buffer_read(b, buffer_s16);
+        var sy = buffer_read(b, buffer_s16);
+        if (from >= 0 && from < 8)
+        {
+            global.mp_soul_tx[from] = sx;
+            global.mp_soul_ty[from] = sy;
+            // First update of this bullet phase: appear there instead of sliding across the box.
+            if ((global.mp_frame - global.mp_soul_f[from]) > 15)
+            {
+                global.mp_soul_x[from] = sx;
+                global.mp_soul_y[from] = sy;
+            }
+            global.mp_soul_f[from] = global.mp_frame;
+        }
+        return;
+    }
     if (type == 41) // MENU INPUT
     {
         var bid = buffer_read(b, buffer_u16);
@@ -463,6 +490,12 @@ function mp_battle_input()
         mp_ui_block();
         return;
     }
+    // Spectating: the hidden SOUL takes no input (a yellow SOUL could still shoot, for one).
+    if (mp_spectating() && instance_exists(obj_heart))
+    {
+        mp_ui_block();
+        return;
+    }
     var menu = global.myfight == 0 && global.mnfight == 0 && global.charturn < 3;
     if (!menu)
         return;
@@ -694,17 +727,9 @@ function mp_party_size()
     return n;
 }
 
-// A SOUL that controls no standing hero was hit: no hero takes damage. A downed player's SOUL
-// still flashes; a watcher's (nobody of theirs in the battle) shows nothing at all.
+// A SOUL that controls no standing hero was hit: it is hidden and spectating, so nothing happens.
 function mp_damage_spectator()
 {
-    if (mp_my_slot_count() == 0)
-        return;
-    if (global.inv < 0)
-    {
-        global.inv = global.invc * 40;
-        snd_play(snd_hurt1);
-    }
 }
 
 // ---------------------------------------------------------------- attack timing (QTE)
@@ -830,6 +855,12 @@ function mp_battle_status()
     var q = mp_qte_waiting_name();
     if (q != "")
         return "Waiting for " + q + "'s attack...";
+    if (mp_soul_state() == 1 && instance_exists(obj_heart))
+    {
+        if (global.mp_spec_target >= 0)
+            return "You're down: watching " + global.mp_pname[global.mp_spec_target] + " until you're revived.";
+        return "You're down: watching until you're revived.";
+    }
     if (global.myfight == 0 && global.mnfight == 0 && global.charturn < 3)
     {
         var o = global.mp_owner[global.charturn];
@@ -849,6 +880,8 @@ function mp_battle_status()
         }
         return "Watching: " + mp_char_name(global.mp_cfg_char) + " is not in this battle. No need to dodge.";
     }
+    if (mp_soul_state() == 1)
+        return "You're down: you'll be back when you're revived.";
     return "";
 }
 
@@ -951,13 +984,11 @@ function mp_ch_revive(slot)
     scr_revive(slot);
 }
 
-// Appended to obj_heart's Draw: when every hero I play is down, or I play nobody in this battle,
-// my SOUL is shown dimmed with a "DOWN" or "WATCHING" label (it still moves, but nothing
-// happens when it is hit).
-function mp_heart_draw_down()
+// 0: I have a hero standing in this battle. 1: all my heroes are down. 2: I play nobody in it.
+function mp_soul_state()
 {
     if (!variable_global_exists("mp_inited") || !mp_battle_on())
-        return;
+        return 0;
     var mine = 0;
     var up = 0;
     for (var s = 0; s < 3; s++)
@@ -969,28 +1000,202 @@ function mp_heart_draw_down()
                 up++;
         }
     }
-    if (mine > 0 && up > 0)
+    if (mine == 0)
+        return 2;
+    return up > 0 ? 0 : 1;
+}
+
+function mp_spectating()
+{
+    return mp_soul_state() != 0;
+}
+
+// Spectating: my SOUL is hidden and takes no input or hits and earns no TP, and sits where the
+// player I'm watching is, so that bullets aiming at "the SOUL" in my game aim at them.
+function mp_spectate_tick(spec)
+{
+    if (spec != global.mp_spec_on)
+    {
+        global.mp_spec_on = spec;
+        mp_log(spec ? "spectating" : "back from spectating");
+        with (obj_heart)
+        {
+            if (spec)
+                global.mp_spec_alpha = image_alpha;
+            else
+                image_alpha = global.mp_spec_alpha;
+        }
+        with (obj_grazebox)
+            visible = !spec;
+    }
+    if (!spec)
         return;
-    // Nobody of mine in this battle: the SOUL is only there to watch the attacks.
-    var label = mine == 0 ? "WATCHING" : "DOWN";
-    var oc = draw_get_color();
-    var oa = draw_get_alpha();
+    global.mp_spec_target = -1;
+    for (var i = 0; i < 8; i++)
+    {
+        if (i != global.mp_myid && global.mp_pconn[i] && (global.mp_frame - global.mp_soul_f[i]) <= 15)
+        {
+            global.mp_spec_target = i;
+            break;
+        }
+    }
+    with (obj_heart)
+    {
+        image_alpha = 0;
+        if (global.mp_spec_target >= 0)
+        {
+            x = global.mp_soul_tx[global.mp_spec_target];
+            y = global.mp_soul_ty[global.mp_spec_target];
+        }
+    }
+}
+
+// While I have a SOUL in a battle, tell the others where it is.
+function mp_soul_tick()
+{
+    if (!mp_battle_on() || !instance_exists(obj_heart))
+    {
+        global.mp_soul_seen = 0;
+        global.mp_spec_on = false;
+        return;
+    }
+    var spec = mp_spectating();
+    mp_spectate_tick(spec);
+    if (spec)
+        return;
+    if (!global.mp_soul_seen)
+    {
+        // Logged so the bullet phase's start can be compared between players.
+        global.mp_soul_seen = 1;
+        if (variable_global_exists("mp_test_ws"))
+            mp_log("soul phase start turn=" + string(global.mp_bturn) + " wc=" + string_format(global.mp_test_ws - ((global.mp_test_wb - current_time) / 1000), 1, 3));
+    }
+    if ((global.mp_frame mod 2) != 0)
+        return;
+    mp_begin(47);
+    mp_ws16(obj_heart.x);
+    mp_ws16(obj_heart.y);
+    mp_send();
+}
+
+// The colour of a character's SOUL. Deep shades on purpose: mid-tones can come out much brighter on
+// some screens (seen on an HDR monitor), and these stay purple and green either way.
+function mp_soul_color(c)
+{
+    switch (c)
+    {
+        case 2:
+            return make_color_rgb(110, 35, 170); // Susie: purple
+        case 3:
+            return make_color_rgb(0, 170, 60); // Ralsei: green
+        case 4:
+            return make_color_rgb(255, 238, 112); // Noelle: yellow
+    }
+    return make_color_rgb(255, 0, 0); // Kris: red, as in the normal game
+}
+
+// A copy of a SOUL sprite in a character's colour, made once from the game's own sprite. Only the
+// red pixels change, so size, shape, outline and frames stay exactly as they are, and SOULs that
+// aren't red (a yellow SOUL, for one) keep their colour.
+function mp_soul_sprite(spr, c)
+{
+    if (c <= 1)
+        return spr;
+    if (!variable_global_exists("mp_soul_sprs"))
+        global.mp_soul_sprs = ds_map_create();
+    var key = string(spr) + ":" + string(c);
+    if (ds_map_exists(global.mp_soul_sprs, key))
+        return ds_map_find_value(global.mp_soul_sprs, key);
+    var w = sprite_get_width(spr);
+    var h = sprite_get_height(spr);
+    var xo = sprite_get_xoffset(spr);
+    var yo = sprite_get_yoffset(spr);
+    var col = mp_soul_color(c);
+    var cr = color_get_red(col);
+    var cg = color_get_green(col);
+    var cb = color_get_blue(col);
+    var surf = surface_create(w, h);
+    var buf = buffer_create(w * h * 4, buffer_fixed, 1);
+    var out = -1;
+    // Which byte of a pixel is red depends on the platform: draw red and see where it lands.
+    surface_set_target(surf);
+    draw_clear_alpha(c_red, 1);
+    surface_reset_target();
+    buffer_get_surface(buf, surf, 0);
+    var ri = buffer_peek(buf, 0, buffer_u8) > 128 ? 0 : 2;
+    var bi = 2 - ri;
+    for (var f = 0; f < sprite_get_number(spr); f++)
+    {
+        surface_set_target(surf);
+        draw_clear_alpha(c_black, 0);
+        draw_sprite(spr, f, xo, yo);
+        surface_reset_target();
+        buffer_get_surface(buf, surf, 0);
+        for (var p = 0; p < (w * h * 4); p += 4)
+        {
+            var pr = buffer_peek(buf, p + ri, buffer_u8);
+            var pg = buffer_peek(buf, p + 1, buffer_u8);
+            var pb = buffer_peek(buf, p + bi, buffer_u8);
+            if (pr > (pg + 30) && pr > (pb + 30))
+            {
+                buffer_poke(buf, p + ri, buffer_u8, floor((cr * pr) / 255));
+                buffer_poke(buf, p + 1, buffer_u8, floor((cg * pr) / 255));
+                buffer_poke(buf, p + bi, buffer_u8, floor((cb * pr) / 255));
+            }
+        }
+        buffer_set_surface(buf, surf, 0);
+        if (out < 0)
+            out = sprite_create_from_surface(surf, 0, 0, w, h, false, false, xo, yo);
+        else
+            sprite_add_from_surface(out, surf, 0, 0, w, h, false, false);
+    }
+    buffer_delete(buf);
+    surface_free(surf);
+    ds_map_set(global.mp_soul_sprs, key, out);
+    mp_log("made a SOUL sprite for character " + string(c) + " from " + sprite_get_name(spr) + " (" + string(w) + "x" + string(h) + ", " + string(sprite_get_number(spr)) + " frames)");
+    return out;
+}
+
+// Appended to obj_heart's Draw: the other players' SOULs, in their character's colour with their
+// name, then my own over them (in my character's colour, if it's the plain red SOUL).
+function mp_heart_draw_others()
+{
+    if (!variable_global_exists("mp_inited") || !mp_battle_on())
+        return;
     var of = draw_get_font();
     var oh = draw_get_halign();
     var ov = draw_get_valign();
-    draw_sprite_ext(sprite_index, image_index, x, y, image_xscale, image_yscale, image_angle, c_black, 0.6);
+    var oc = draw_get_color();
+    var oa = draw_get_alpha();
     if (global.mp_font_small >= 0)
         draw_set_font(global.mp_font_small);
     draw_set_halign(fa_center);
     draw_set_valign(fa_bottom);
     draw_set_alpha(1);
-    draw_text_transformed_color(x + 9 + 1, y - 4 + 1, label, 1, 1, 0, c_black, c_black, c_black, c_black, 1);
-    draw_text_transformed_color(x + 9, y - 4, label, 1, 1, 0, c_ltgray, c_ltgray, c_ltgray, c_ltgray, 1);
+    for (var i = 0; i < 8; i++)
+    {
+        if (i == global.mp_myid || !global.mp_pconn[i] || (global.mp_frame - global.mp_soul_f[i]) > 15)
+            continue;
+        global.mp_soul_x[i] += (global.mp_soul_tx[i] - global.mp_soul_x[i]) * 0.4;
+        global.mp_soul_y[i] += (global.mp_soul_ty[i] - global.mp_soul_y[i]) * 0.4;
+        // Whole pixels, like the real SOUL: in-between positions would look blurred.
+        var sx = round(global.mp_soul_x[i]);
+        var sy = round(global.mp_soul_y[i]);
+        var col = mp_soul_color(global.mp_pchar[i]);
+        draw_sprite_ext(mp_soul_sprite(sprite_index, global.mp_pchar[i]), 0, sx, sy, image_xscale, image_yscale, 0, c_white, 1);
+        var label = string_copy(global.mp_pname[i], 1, 8);
+        draw_text_transformed_color(sx + 9 + 1, sy - 4 + 1, label, 1, 1, 0, c_black, c_black, c_black, c_black, 1);
+        draw_text_transformed_color(sx + 9, sy - 4, label, 1, 1, 0, col, col, col, col, 1);
+    }
     draw_set_font(of);
     draw_set_halign(oh);
     draw_set_valign(ov);
     draw_set_color(oc);
     draw_set_alpha(oa);
+    // color 0 is the normal SOUL (the other colours are special modes the game draws in its own way;
+    // Chapter 1 only has the normal one and no such variable).
+    if (!global.mp_spec_on && (!variable_instance_exists(id, "color") || color == 0))
+        draw_sprite_ext(mp_soul_sprite(sprite_index, global.mp_pchar[global.mp_myid]), image_index, x, y, image_xscale, image_yscale, image_angle, c_white, image_alpha);
 }
 
 // Prepended to scr_damage outside battles. HP is shared, so another player's hit can take one of

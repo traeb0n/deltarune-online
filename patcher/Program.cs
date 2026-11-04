@@ -142,6 +142,15 @@ static class Program
         using (var fs = File.OpenRead(inPath))
             data = UndertaleIO.Read(fs, (w, _) => Console.WriteLine("  warn: " + w), _ => { });
 
+        // Optional: a different game name, so this build keeps its saves apart from the normal game's.
+        string saveName = Environment.GetEnvironmentVariable("DRM_SAVE_NAME");
+        if (!string.IsNullOrEmpty(saveName))
+        {
+            Console.WriteLine($"  game name: {data.GeneralInfo.Name?.Content} -> {saveName} (file name: {data.GeneralInfo.FileName?.Content})");
+            data.GeneralInfo.Name = data.Strings.MakeString(saveName);
+            data.GeneralInfo.FileName = data.Strings.MakeString(saveName);
+        }
+
         var group = new CodeImportGroup(data) { ThrowOnNoOpFindReplace = true };
         int count = 0;
 

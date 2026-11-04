@@ -26,6 +26,14 @@ function mp_sync_init()
     global.mp_mus_until = 0;
     global.mp_mus_sent = "";
     global.mp_pmus = array_create(8, "");
+    global.mp_ms_new = 0;
+    global.mp_ms_song = "";
+    global.mp_ms_pos = 0;
+    global.mp_ms_room = -1;
+    global.mp_ms_battle = 0;
+    global.mp_ms_time = 0;
+    global.mp_ms_mismatch = 0;
+    global.mp_ms_samples = 0;
     global.mp_hist_x = array_create(16, 0);
     global.mp_hist_y = array_create(16, 0);
     global.mp_hist_i = 0;
@@ -207,6 +215,16 @@ function mp_sync_recv(type, from, b)
         global.mp_pmus[from] = buffer_read(b, buffer_string);
         return;
     }
+    if (type == 37) // the host's music clock
+    {
+        global.mp_ms_song = buffer_read(b, buffer_string);
+        global.mp_ms_pos = buffer_read(b, buffer_f64);
+        global.mp_ms_room = buffer_read(b, buffer_u16);
+        global.mp_ms_battle = buffer_read(b, buffer_u8);
+        global.mp_ms_time = current_time;
+        global.mp_ms_new = 1;
+        return;
+    }
     if (type == 30) // PULL
     {
         var kind = buffer_read(b, buffer_u8);
@@ -321,6 +339,94 @@ function mp_music_tick()
         mp_begin(34);
         mp_wstr(nm);
         mp_send();
+    }
+}
+
+// Music clock: once a second the host sends its song and how far into it it is. A client in the
+// same room or battle moves its playback to match, and changes song if it stays on a different one.
+function mp_music_clock_tick()
+{
+    if (global.mp_role == 1)
+    {
+        if ((global.mp_frame mod 30) != 0)
+            return;
+        var nm = mp_music_name();
+        mp_begin(37);
+        mp_wstr(nm);
+        mp_wf64(nm != "" ? audio_sound_get_track_position(global.currentsong[1]) : 0);
+        mp_wu16(room);
+        mp_wu8(mp_in_battle_scene() ? 1 : 0);
+        mp_send();
+        return;
+    }
+    if (global.mp_ms_new)
+    {
+        global.mp_ms_new = 0;
+        mp_music_clock_apply();
+    }
+}
+
+function mp_music_clock_apply()
+{
+    var mine_battle = mp_in_battle_scene();
+    var together = mine_battle ? (global.mp_ms_battle == 1) : (global.mp_ms_battle == 0 && global.mp_ms_room == room);
+    if (!together)
+    {
+        global.mp_ms_mismatch = 0;
+        return;
+    }
+    var mine = mp_music_name();
+    if (mine != global.mp_ms_song)
+    {
+        // A scene may be changing the music on purpose, and the two games can reach it at
+        // slightly different times: only step in when nothing is going on and it stays different.
+        if (!mine_battle && (global.interact != 0 || mp_cutscene_running() || mp_room_event_active() || global.mp_sstate != 0))
+        {
+            global.mp_ms_mismatch = 0;
+            return;
+        }
+        global.mp_ms_mismatch += 1;
+        if (global.mp_ms_mismatch < 3)
+            return;
+        global.mp_ms_mismatch = 0;
+        mp_log("music differs from the host: mine '" + mine + "', host '" + global.mp_ms_song + "'");
+        if (global.mp_ms_song == "")
+        {
+            if (variable_global_exists("currentsong") && is_array(global.currentsong) && snd_is_playing(global.currentsong[1]))
+                snd_stop(global.currentsong[1]);
+        }
+        else
+        {
+            global.mp_pmus[0] = global.mp_ms_song;
+            mp_music_follow(0);
+        }
+        return;
+    }
+    global.mp_ms_mismatch = 0;
+    if (mine == "")
+        return;
+    var inst = global.currentsong[1];
+    var len = audio_sound_length(inst);
+    if (len <= 0)
+        return;
+    // Half the round trip plus however long ago the message arrived.
+    var expected = (global.mp_ms_pos + ((current_time - global.mp_ms_time + (global.mp_rtt / 2)) / 1000)) mod len;
+    var cur = audio_sound_get_track_position(inst);
+    var drift = expected - cur;
+    // Either side may have just looped.
+    if (drift > (len / 2))
+        drift -= len;
+    if (drift < (-len / 2))
+        drift += len;
+    global.mp_ms_samples += 1;
+    if (abs(drift) > 0.1)
+    {
+        audio_sound_set_track_position(inst, expected);
+        mp_log("music corrected: drift=" + string_format(drift, 1, 3) + " song=" + mine);
+    }
+    else if ((global.mp_ms_samples mod 5) == 0)
+    {
+        mp_log("music in sync: drift=" + string_format(drift, 1, 3) + " song=" + mine);
     }
 }
 

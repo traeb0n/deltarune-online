@@ -28,9 +28,18 @@ mp_draw_mainchara(tower_shake_xoffset);
 @end
 #chapters all
 
-;; A downed player's SOUL is dimmed and labelled.
+;; The other players' SOULs are drawn over the battle box.
 @append gml_Object_obj_heart_Draw_0
-mp_heart_draw_down();
+mp_heart_draw_others();
+
+;; A spectating player's hidden SOUL earns no TP from grazing and doesn't shorten the turn.
+@prepend gml_Object_obj_grazebox_Collision_obj_collidebullet
+if (mp_spectating())
+    exit;
+
+@prepend? gml_Object_obj_grazebox_Collision_obj_orangeheart_bullet
+if (mp_spectating())
+    exit;
 
 ;; Chapter 1's snd_init does not record the song's file name (Chapter 2+ does): the music sync needs it.
 #chapters 1

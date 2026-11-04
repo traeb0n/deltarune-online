@@ -5,7 +5,7 @@ function mp_init()
     if (variable_global_exists("mp_inited"))
         return;
     global.mp_inited = 1;
-    global.mp_version = 3;
+    global.mp_version = 4;
     global.mp_chapter = __CHAPTER__;
     global.mp_frame = 0;
     global.mp_notes = ds_list_create();
@@ -483,6 +483,8 @@ function mp_tick()
     }
     mp_sync_tick();
     mp_battle_tick();
+    mp_soul_tick();
+    mp_music_clock_tick();
     mp_world_tick();
 }
 

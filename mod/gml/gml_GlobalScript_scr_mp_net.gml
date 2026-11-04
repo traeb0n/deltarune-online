@@ -246,7 +246,7 @@ function mp_rval(b)
 
 function mp_type_unreliable(type)
 {
-    return type == 10;
+    return type == 10 || type == 37 || type == 47; // positions, the music clock, SOUL positions
 }
 
 // Finishes the current message and sends it to everyone (host: all clients; client: the hub).

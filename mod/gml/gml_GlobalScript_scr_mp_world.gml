@@ -847,6 +847,11 @@ function mp_on_save_loaded()
     if (!variable_global_exists("mp_inited"))
         return;
     global.mp_loaded = 1;
+    // A pending post-battle room rebuild belongs to the room we just left. Left running through a
+    // Game Over it fires in the loaded room on only some players' games and restarts its story there.
+    global.mp_scenes_killed = 0;
+    global.mp_postbattle = 0;
+    global.mp_postbattle_waits = 0;
     // Continue after a Game Over: everyone reloads their own save, so meet at the host afterwards.
     if (global.mp_gameover && mp_on() && global.mp_role == 2)
         global.mp_goto_timer = 180;

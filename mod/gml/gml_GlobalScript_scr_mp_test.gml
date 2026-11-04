@@ -58,6 +58,25 @@ function mp_test_tick()
         global.mp_test_lastturn = -1;
     }
     global.mp_test_timer += 1;
+    // immortal: my heroes stay at full HP (the others can go down without a Game Over).
+    // revive:<n>: n frames into spectating, my heroes get half their HP back.
+    if (variable_global_exists("mp_b_active") && mp_battle_on())
+    {
+        if (!variable_global_exists("mp_test_spec_t"))
+            global.mp_test_spec_t = 0;
+        global.mp_test_spec_t = global.mp_spec_on ? (global.mp_test_spec_t + 1) : 0;
+        var heal_to = mp_test_has("immortal") ? 1 : (mp_test_has("revive") && global.mp_test_spec_t == real(mp_test_arg("revive")) ? 0.5 : 0);
+        if (heal_to > 0)
+        {
+            for (var hs = 0; hs < 3; hs++)
+            {
+                if (global.char[hs] != 0 && global.mp_owner[hs] == global.mp_myid)
+                    global.hp[global.char[hs]] = ceil(global.maxhp[global.char[hs]] * heal_to);
+            }
+            if (heal_to < 1)
+                mp_log("[test] revived");
+        }
+    }
     // Wall clock with frame precision for tools/mpcheck.py: the moment the (whole-second)
     // wall clock ticks over.
     var wsec = floor((date_current_datetime() - 45000) * 86400 + 0.5);
