@@ -5,7 +5,7 @@ function mp_init()
     if (variable_global_exists("mp_inited"))
         return;
     global.mp_inited = 1;
-    global.mp_version = 4;
+    global.mp_version = 5;
     global.mp_chapter = __CHAPTER__;
     global.mp_frame = 0;
     global.mp_notes = ds_list_create();
@@ -31,6 +31,7 @@ function mp_init()
     mp_config_load();
     mp_world_init();
     mp_sync_init();
+    mp_timing_init();
     mp_battle_init();
     mp_ui_init();
     global.mp_resumed = 0;
@@ -462,6 +463,11 @@ function mp_after_input()
     }
     if (!mp_on())
         return;
+    if (mp_timing_input())
+    {
+        mp_ui_block();
+        return;
+    }
     mp_sync_input();
     mp_battle_input();
 }
@@ -469,6 +475,13 @@ function mp_after_input()
 // obj_mp_controller Step.
 function mp_tick()
 {
+    if (global.mp_hold)
+    {
+        mp_net_tick();
+        mp_enc_host_tick();
+        mp_hold_tick();
+        return;
+    }
     if (global.mp_test != "")
         mp_test_tick();
     if (global.mp_role == 0)
@@ -476,6 +489,7 @@ function mp_tick()
     mp_net_tick();
     if (!mp_on())
         return;
+    mp_enc_host_tick();
     if ((global.mp_frame mod 600) == 5 || !global.mp_resume_done)
     {
         global.mp_resume_done = 1;
@@ -493,7 +507,7 @@ function mp_end_tick()
 {
     if (global.mp_role == 0)
         return;
-    if (mp_on())
+    if (mp_on() && !global.mp_hold)
         mp_ghosts_update();
     mp_flush();
 }

@@ -203,3 +203,8 @@ mp_enemy_touched();
 @prepend gml_Object_obj_overworldenemy_parent_Other_10
 mp_enemy_touched();
 #chapters all
+
+;; Encounters start at the same moment in every game: everyone waits just before the "!" horn.
+@prepend gml_Object_obj_testoverworldenemy_Step_0
+if (con == 1 && !mp_enc_gate())
+    exit;

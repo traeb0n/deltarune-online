@@ -694,10 +694,14 @@ function mp_handle_link(type, sender, b, p)
     if (type == 5) // PING (host answers)
     {
         var tm = buffer_read(b, buffer_u32);
+        var prtt = buffer_read(b, buffer_u16);
         if (global.mp_role == 1)
         {
+            if (p.pid >= 0 && p.pid < 8)
+                global.mp_prtt[p.pid] = prtt;
             mp_begin(6);
             mp_wu32(tm);
+            mp_wf64(current_time);
             mp_send_unreliable_to(p);
         }
         return true;
@@ -705,7 +709,9 @@ function mp_handle_link(type, sender, b, p)
     if (type == 6) // PONG
     {
         var tm2 = buffer_read(b, buffer_u32);
+        var host_t = buffer_read(b, buffer_f64);
         global.mp_rtt = (current_time mod 4000000000) - tm2;
+        mp_clock_sample(tm2, host_t);
         return true;
     }
     if (type == 7) // BYE
@@ -736,11 +742,13 @@ function mp_net_tick()
         }
         if (global.mp_linkstate == 3)
         {
-            if ((current_time - global.mp_lastping) > 2000)
+            // Quickly at first, so the shared clock is good from the start.
+            if ((current_time - global.mp_lastping) > (global.mp_clock_n < 20 ? 100 : 500))
             {
                 global.mp_lastping = current_time;
                 mp_begin(5);
                 mp_wu32(current_time mod 4000000000);
+                mp_wu16(clamp(global.mp_rtt, 0, 65535));
                 mp_send_unreliable_to(global.mp_hub);
             }
             if ((current_time - global.mp_hub.lastrecv) > 30000)

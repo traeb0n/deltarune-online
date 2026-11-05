@@ -77,12 +77,21 @@ function mp_test_tick()
                 mp_log("[test] revived");
         }
     }
-    // Wall clock with frame precision for tools/mpcheck.py: the moment the (whole-second)
-    // wall clock ticks over.
-    var wsec = floor((date_current_datetime() - 45000) * 86400 + 0.5);
-    if (!variable_global_exists("mp_test_ws") || wsec != global.mp_test_ws)
+    // Wall clock for comparing games on one PC: waits once for the (whole-second) wall clock to
+    // tick over, which ties this game's clock to it to about a millisecond.
+    if (!variable_global_exists("mp_test_ws"))
     {
-        global.mp_test_ws = wsec;
+        global.mp_test_ws = floor((date_current_datetime() - 45000) * 86400 + 0.5);
+        global.mp_test_wb = current_time;
+    }
+    if (!variable_global_exists("mp_test_wcal") && global.mp_frame > 60)
+    {
+        global.mp_test_wcal = 1;
+        var wsec = floor((date_current_datetime() - 45000) * 86400 + 0.5);
+        var wnow = wsec;
+        while (wnow == wsec)
+            wnow = floor((date_current_datetime() - 45000) * 86400 + 0.5);
+        global.mp_test_ws = wnow;
         global.mp_test_wb = current_time;
     }
     var partyat = 60;

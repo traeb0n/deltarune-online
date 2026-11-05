@@ -104,7 +104,7 @@ function mp_sync_release_all()
 
 function mp_in_battle_scene()
 {
-    return instance_exists(obj_battlecontroller) || instance_exists(obj_encounterbasic);
+    return global.mp_hold || instance_exists(obj_battlecontroller) || instance_exists(obj_encounterbasic);
 }
 
 // Called from mp_after_input: spectators must not move.
@@ -511,6 +511,8 @@ function mp_sync_try_pull()
     if (!instance_exists(obj_mainchara))
     {
         // Title screen / file select: cannot be pulled yet.
+        if (kind == 1 && global.mp_pull[7] == 0)
+            mp_enc_send_ready(2);
         global.mp_pull[7] += 1;
         if (p[7] > 300)
             global.mp_pull = -1;
@@ -728,7 +730,7 @@ function mp_sync_tick()
         if (!global.mp_battle_pulled && (global.mp_sstate == 0 || global.mp_sstate == 1))
             mp_send_pull(1);
     }
-    if (!battle && global.mp_battle_seen && !instance_exists(obj_battlecontroller))
+    if (!battle && global.mp_battle_seen && !instance_exists(obj_battlecontroller) && !instance_exists(obj_testoverworldenemy))
     {
         global.mp_battle_seen = 0;
         global.mp_battle_pulled = 0;
@@ -1034,6 +1036,8 @@ function mp_status_line()
 {
     if (!mp_on())
         return "";
+    if (global.mp_enc_waiting)
+        return mp_timing_status();
     var bs = mp_battle_status();
     if (bs != "")
         return bs;

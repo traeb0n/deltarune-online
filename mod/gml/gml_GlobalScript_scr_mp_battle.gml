@@ -36,6 +36,13 @@ function mp_battle_clear_buffers()
 
 function mp_battle_reset()
 {
+    if (variable_global_exists("mp_hold"))
+    {
+        mp_hold_end();
+        global.mp_hold_want = 0;
+        global.mp_tgo_pending = -1;
+        mp_gate_reset();
+    }
     if (variable_global_exists("mp_susie_lent"))
         mp_susie_restore();
     global.mp_susie_lent = 0;
@@ -78,7 +85,7 @@ function mp_battle_reset()
 
 function mp_battle_on()
 {
-    return global.mp_b_active && mp_on() && instance_exists(obj_battlecontroller);
+    return global.mp_b_active && mp_on() && (global.mp_hold || instance_exists(obj_battlecontroller));
 }
 
 function mp_slot_mine(s)
@@ -181,6 +188,7 @@ function mp_battle_created()
     global.mp_bwait_turn = 0;
     global.mp_bwait_since = current_time;
     global.mp_tension_b0 = global.tension;
+    global.mp_hold_want = 1;
     mp_compute_owners();
     mp_send_tdone(0, 0);
     if (global.mp_role == 1)
@@ -259,6 +267,11 @@ function mp_turn_gate()
 
 function mp_battle_recv(type, from, b)
 {
+    if (type >= 48 && type <= 51)
+    {
+        mp_timing_recv(type, from, b);
+        return;
+    }
     if (type == 47) // where the sender's SOUL is
     {
         var sx = buffer_read(b, buffer_s16);
@@ -331,6 +344,7 @@ function mp_battle_recv(type, from, b)
         if (mp_battle_on() && bid4 == global.mp_bid && !global.mp_gameover)
         {
             mp_log("remote game over from " + string(from));
+            mp_hold_end();
             global.mp_gameover = 1;
             scr_gameover();
         }
@@ -350,8 +364,9 @@ function mp_battle_recv(type, from, b)
             st[12 + s] = buffer_read(b, buffer_f64);
             st[15 + s] = buffer_read(b, buffer_u8);
         }
+        st[18] = buffer_read(b, buffer_f64);
         if (mp_battle_on() && st[0] == global.mp_bid)
-            mp_apply_tgo(st);
+            global.mp_tgo_pending = st;
         return;
     }
 }
@@ -421,6 +436,8 @@ function mp_host_turn_check()
     if (global.mp_role != 1 || !global.mp_bwait)
         return;
     var t = global.mp_bwait_turn;
+    if (t <= global.mp_tgo_sent)
+        return; // already released: starts at its timed moment
     var waited = current_time - global.mp_bwait_since;
     var ready = true;
     for (var i = 1; i < 8; i++)
@@ -489,11 +506,13 @@ function mp_host_turn_check()
         mp_wf64(st[12 + s]);
         mp_wu8(st[15 + s]);
     }
+    st[18] = mp_clock_now() + mp_timing_lead();
+    mp_wf64(st[18]);
     mp_send();
     global.mp_tgo_sent = t;
     for (var k = 0; k < 8; k++)
         global.mp_tdone_late[k] = 0;
-    mp_apply_tgo(st);
+    global.mp_tgo_pending = st;
 }
 
 // ---------------------------------------------------------------- per-frame
@@ -503,6 +522,12 @@ function mp_battle_input()
 {
     if (!mp_battle_on())
         return;
+    // A new phase: wait for the others, frozen, before anything of it runs.
+    if (mp_phase_gate_check())
+    {
+        mp_ui_block();
+        return;
+    }
     // Seed the enemy's turn identically everywhere.
     if (global.mnfight != global.mp_prev_mnfight)
     {
@@ -638,6 +663,7 @@ function mp_battle_tick()
     if (!mp_battle_on())
         return;
     mp_host_turn_check();
+    mp_gate_host_tick();
     mp_client_gate_fallback();
     mp_battle_send_hp();
     mp_battle_apply_hp();
@@ -883,6 +909,8 @@ function mp_battle_status()
 {
     if (!mp_battle_on())
         return "";
+    if (global.mp_hold)
+        return mp_timing_status();
     if (global.mp_bwait)
     {
         var names = mp_bwait_names();
@@ -963,12 +991,13 @@ function mp_on_gameover()
 // Client: if the host is no longer in this battle, stop waiting and carry on alone.
 function mp_client_gate_fallback()
 {
-    if (global.mp_role != 2 || !global.mp_bwait)
+    if (global.mp_role != 2 || !global.mp_bwait || is_array(global.mp_tgo_pending))
         return;
     var waited = current_time - global.mp_bwait_since;
     var hostgone = (global.mp_pstate[0] & 1) == 0 && (current_time - global.mp_ppostime[0]) < 5000;
     if ((hostgone && waited > 5000) || waited > 90000)
     {
+        mp_hold_end();
         mp_log("host left the battle; continuing alone");
         mp_notify("Host is no longer in this battle - continuing on your own.");
         for (var s = 0; s < 3; s++)
