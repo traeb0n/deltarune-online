@@ -36,6 +36,9 @@ function mp_battle_clear_buffers()
 
 function mp_battle_reset()
 {
+    if (variable_global_exists("mp_susie_lent"))
+        mp_susie_restore();
+    global.mp_susie_lent = 0;
     global.mp_gameover = 0;
     global.mp_tgo_sent = -1;
     global.mp_b_active = 0;
@@ -121,6 +124,39 @@ function mp_compute_owners()
     }
 }
 
+// Chapter 1 puts Susie on autopilot until the prison (global.charauto[2]): she gets no menu and no
+// attack row, and swings by herself. A player who picked Susie plays her instead, for this battle.
+// Decided from the owners the host sent, so every game agrees.
+function mp_susie_update()
+{
+    var played = false;
+    for (var s = 0; s < 3; s++)
+    {
+        var o = global.mp_owner[s];
+        if (global.char[s] == 2 && o != 255 && global.mp_pchar[o] == 2)
+            played = true;
+    }
+    if (!played)
+        mp_susie_restore();
+    else if (!global.mp_susie_lent && global.charauto[2] == 1)
+    {
+        global.mp_susie_lent = 1;
+        global.charauto[2] = 0;
+        mp_log("susie: autopilot off, a player has her");
+    }
+}
+
+// Back to autopilot once the battle is over, so the story's own setting is what remains.
+function mp_susie_restore()
+{
+    if (global.mp_susie_lent)
+    {
+        global.mp_susie_lent = 0;
+        global.charauto[2] = 1;
+        mp_log("susie: autopilot back on");
+    }
+}
+
 function mp_battle_seed(phase)
 {
     if (!mp_battle_on())
@@ -162,6 +198,7 @@ function mp_battle_ended()
         global.mp_postbattle = 120;
     }
     global.mp_b_active = 0;
+    mp_susie_restore();
     mp_battle_clear_buffers();
     global.mp_tgo_stash = -1;
     if (global.mp_role == 1)
@@ -328,6 +365,7 @@ function mp_apply_tgo(st)
         return;
     for (var s = 0; s < 3; s++)
         global.mp_owner[s] = st[3 + s];
+    mp_susie_update();
     if (turn > 0)
     {
         global.tension = st[2];
