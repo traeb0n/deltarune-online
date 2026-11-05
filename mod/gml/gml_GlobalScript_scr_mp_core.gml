@@ -5,7 +5,7 @@ function mp_init()
     if (variable_global_exists("mp_inited"))
         return;
     global.mp_inited = 1;
-    global.mp_version = 5;
+    global.mp_version = 6;
     global.mp_chapter = __CHAPTER__;
     global.mp_frame = 0;
     global.mp_notes = ds_list_create();
@@ -31,6 +31,8 @@ function mp_init()
     mp_config_load();
     mp_world_init();
     mp_sync_init();
+    mp_voice_init();
+    mp_group_init();
     mp_timing_init();
     mp_battle_init();
     mp_ui_init();
@@ -226,6 +228,17 @@ function mp_config_load()
     global.mp_cfg_char = ini_read_real("player", "char", 1);
     global.mp_cfg_ip = ini_read_string("net", "ip", "127.0.0.1");
     global.mp_cfg_port = ini_read_real("net", "port", 26510);
+    global.mp_cfg_open = ini_read_real("game", "openworld", 1);
+    global.mp_cfg_hud = ini_read_real("ui", "playerlist", 1);
+    global.mp_cfg_tags = ini_read_real("ui", "nametags", 1);
+    global.mp_cfg_souls = ini_read_real("ui", "souls", 1);
+    global.mp_cfg_vmode = ini_read_real("voice", "mode", 1);
+    global.mp_cfg_vmic = ini_read_real("voice", "mic", 0);
+    global.mp_cfg_vvol = ini_read_real("voice", "volume", 100);
+    global.mp_cfg_vmicvol = ini_read_real("voice", "micvolume", 100);
+    global.mp_cfg_vrange = ini_read_real("voice", "range", 1);
+    global.mp_cfg_vkey = ini_read_real("voice", "key", ord("V"));
+    global.mp_cfg_vsens = ini_read_real("voice", "sensitivity", 1);
     ini_close();
     global.mp_cfg_char = clamp(global.mp_cfg_char, 1, mp_char_max());
 }
@@ -237,6 +250,17 @@ function mp_config_save()
     ini_write_real("player", "char", global.mp_cfg_char);
     ini_write_string("net", "ip", global.mp_cfg_ip);
     ini_write_real("net", "port", global.mp_cfg_port);
+    ini_write_real("game", "openworld", global.mp_cfg_open);
+    ini_write_real("ui", "playerlist", global.mp_cfg_hud);
+    ini_write_real("ui", "nametags", global.mp_cfg_tags);
+    ini_write_real("ui", "souls", global.mp_cfg_souls);
+    ini_write_real("voice", "mode", global.mp_cfg_vmode);
+    ini_write_real("voice", "mic", global.mp_cfg_vmic);
+    ini_write_real("voice", "volume", global.mp_cfg_vvol);
+    ini_write_real("voice", "micvolume", global.mp_cfg_vmicvol);
+    ini_write_real("voice", "range", global.mp_cfg_vrange);
+    ini_write_real("voice", "key", global.mp_cfg_vkey);
+    ini_write_real("voice", "sensitivity", global.mp_cfg_vsens);
     ini_close();
 }
 
@@ -342,6 +366,7 @@ function mp_on_session_start()
     mp_battle_reset();
     mp_battle_clear_buffers();
     global.mp_pos_force = 1;
+    mp_notify("Press F9 for the menu, controls and settings.");
 }
 
 function mp_on_session_end()
@@ -349,6 +374,10 @@ function mp_on_session_end()
     mp_ghosts_clear();
     mp_sync_release_all();
     mp_battle_reset();
+    mp_party_restore();
+    mp_gid_clear();
+    global.mp_wipe = 0;
+    global.mp_enc_waiting = 0;
 }
 
 // ---------------------------------------------------------------- dispatch
@@ -468,6 +497,8 @@ function mp_after_input()
         mp_ui_block();
         return;
     }
+    if (mp_join_input())
+        mp_ui_block();
     mp_sync_input();
     mp_battle_input();
 }
@@ -478,7 +509,8 @@ function mp_tick()
     if (global.mp_hold)
     {
         mp_net_tick();
-        mp_enc_host_tick();
+        mp_enc_lead_tick();
+        mp_leader_check();
         mp_hold_tick();
         return;
     }
@@ -489,7 +521,9 @@ function mp_tick()
     mp_net_tick();
     if (!mp_on())
         return;
-    mp_enc_host_tick();
+    mp_enc_lead_tick();
+    mp_leader_check();
+    mp_rtt_share_tick();
     if ((global.mp_frame mod 600) == 5 || !global.mp_resume_done)
     {
         global.mp_resume_done = 1;
@@ -505,6 +539,7 @@ function mp_tick()
 // obj_mp_controller End Step.
 function mp_end_tick()
 {
+    mp_voice_tick();
     if (global.mp_role == 0)
         return;
     if (mp_on() && !global.mp_hold)

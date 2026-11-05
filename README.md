@@ -53,26 +53,33 @@ keyboard or controller, and can walk to a different room from everyone else.
 * The protocol is reliable-UDP with its own acknowledgements, so it copes with lag and
   packet loss (see "Network protocol" below).
 
+## Battles, in two modes
+
+The host picks one under F9 > Settings:
+
+* **Open-world battles** (default). Touch an enemy and you fight it with the players on your screen in that room. Everyone else keeps playing, and any number of fights can run at once. Walk up to a player in a fight and press Z to join at the next player turn. In a fight, only the heroes of its players take part, so a solo Susie or Ralsei fights alone, and may not be able to spare enemies. Story cutscenes and scripted bosses still bring in everyone. If your whole fight falls, only your fight sees Game Over: you come back at the room's entrance with some HP, and nothing is reloaded.
+* **Everyone gets pulled in.** Every battle is every player's. A wipe sends everyone back to their last save.
+
+**Timing.** Every game keeps a clock shared with the host. Before an encounter's "!" and before each turn, hero action and bullet phase, each game in the fight stops and reports ready. The fight's leader then names a moment slightly ahead and everyone starts at that moment, so someone with a higher ping doesn't start later. Nobody waits forever: there are time limits. Measured on one PC: at most about 18 ms apart (a frame is 33 ms).
+
+Bullets are local: each game has its own, aimed at that player's SOUL, and only your own bullets touching your own SOUL hurt you. A bullet can seem to pass through another player's SOUL on your screen.
+
+## Voice chat
+
+Proximity voice: you hear players in the same room, quieter with distance. Push to talk by default (hold V), or open mic, or off. F9 > Settings has the microphone, talk key, mic volume, open mic sensitivity, voice volume, hearing range and a mic test. It uses about 8 KB/s per person talking. The microphone is only open while you talk.
+
 ## Installing
 
-You need DELTARUNE (the Steam/itch version with `chapter1_windows` … `chapter5_windows`
-folders). Every player needs the mod installed.
+You need DELTARUNE on Windows (the Steam version with `chapter1_windows` ... folders). Every player needs the mod, at the same version.
 
-**Windows:** unzip `DeltaruneMultiplayer-windows.zip` anywhere and run `Install.bat`. It
-finds the default Steam install automatically. Otherwise, drag your DELTARUNE folder onto
-`Install.bat`.
+Unzip `DeltaruneOnline-windows.zip` and run `Install.bat`. It copies your game to `%LOCALAPPDATA%\DeltaruneOnline\game` and patches the copy, so your Steam copy is never changed. Saves are kept in `%LOCALAPPDATA%\DELTARUNE_ONLINE`, apart from your normal ones. Start with `Play DELTARUNE Online.bat`. `Uninstall.bat` deletes the copy.
 
-**Linux / Steam Deck (Proton):** unzip `DeltaruneMultiplayer-linux.zip` and run
-`./install.sh` (or `./install.sh /path/to/DELTARUNE`).
-
-The installer keeps the original as `data.win.vanilla` in each chapter folder. Re-running it
-(e.g. to update the mod) always patches from that original. `Uninstall.bat` /
-`uninstall.sh` restores the originals.
+The older in-place `drm-patcher install` command still exists.
 
 ## Playing
 
 1. Everyone starts DELTARUNE, picks the **same chapter** and loads (or starts) a game.
-2. Press **F9** to open the multiplayer menu.
+2. Press **F9** to open the multiplayer menu. Controls & info and Settings are in it.
    * **Name** and **Play as**: use left/right to pick your character. You can change it any
      time; it takes effect from the next battle turn.
    * The host chooses **Host a game**. The default port is UDP **26510**.
@@ -150,7 +157,7 @@ One UDP socket. Each datagram (≤1200 bytes) carries a cumulative ack plus a 32
 selective-ack field and any number of records. Reliable records are retransmitted with an
 RTT-based timeout and back-off, at most 4 datagrams per frame. Unreliable records (positions)
 replace older queued ones and are dropped if they arrive out of order. The host is the hub and
-forwards everything to the other players. Protocol version 2 (older versions can't join). Peers time out after 30 s of silence.
+forwards everything to the other players. Protocol version 6 (older versions can't join). Peers time out after 30 s of silence.
 
 ### Source layout
 

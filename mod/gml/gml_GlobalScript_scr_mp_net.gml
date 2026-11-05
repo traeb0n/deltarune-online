@@ -246,7 +246,7 @@ function mp_rval(b)
 
 function mp_type_unreliable(type)
 {
-    return type == 10 || type == 37 || type == 47; // positions, the music clock, SOUL positions
+    return type == 10 || type == 37 || type == 38 || type == 47; // positions, music clock, pings, SOUL positions
 }
 
 // Finishes the current message and sends it to everyone (host: all clients; client: the hub).
@@ -537,6 +537,10 @@ function mp_net_async()
                 ds_map_set(p.rbuf, seq, cb);
             }
         }
+        else if (kind == 3)
+        {
+            mp_voice_net(b, pos, len);
+        }
         else if (kind == 2)
         {
             if (p.lastu < 0 || mp_seq_after(seq, p.lastu))
@@ -666,8 +670,12 @@ function mp_handle_link(type, sender, b, p)
         mp_vars_send_full(p);
         mp_send_pos(1, p);
         // Joining while I'm in a battle: come and join it (from the next turn).
-        if (global.mp_battle_seen && mp_in_battle_scene())
+        // (In open-world battles they walk up and join like anyone else.)
+        if (!global.mp_open && global.mp_battle_seen && mp_in_battle_scene())
             mp_send_pull_to(1, p);
+        mp_begin(39);
+        mp_wu8(global.mp_open);
+        mp_send_to(p);
         mp_notify(global.mp_pname[pid] + " joined!");
         return true;
     }

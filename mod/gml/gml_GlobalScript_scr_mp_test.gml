@@ -94,6 +94,31 @@ function mp_test_tick()
         global.mp_test_ws = wnow;
         global.mp_test_wb = current_time;
     }
+    // walkup:<frame>: stand next to the first other player, wherever they are in the room.
+    if (mp_test_arg("walkup") != "" && !variable_global_exists("mp_test_walked") && global.mp_frame >= real(mp_test_arg("walkup")) && instance_exists(obj_mainchara))
+    {
+        global.mp_test_walked = 1;
+        for (var wi = 0; wi < 8; wi++)
+        {
+            if (wi != global.mp_myid && global.mp_pconn[wi] && global.mp_proom[wi] == room)
+            {
+                obj_mainchara.x = global.mp_px[wi] + 30;
+                obj_mainchara.y = global.mp_py[wi];
+                mp_log("[test] walked up to player " + string(wi));
+                break;
+            }
+        }
+    }
+    // uishot:<page>: show a page of the menu for a screenshot.
+    if (mp_test_arg("uishot") != "" && global.mp_frame == 300)
+    {
+        global.mp_ui_open = 1;
+        global.mp_ui_page = real(mp_test_arg("uishot"));
+    }
+    if (mp_test_has("open"))
+        global.mp_open = 1;
+    if (mp_test_has("everyone"))
+        global.mp_open = 0;
     var partyat = 60;
     if (mp_test_arg("partyat") != "")
         partyat = real(mp_test_arg("partyat"));
@@ -299,6 +324,9 @@ function mp_test_input()
     // mashevery:<n> presses every n frames instead of 10 (a slow reader), mashfrom:<n> starts n frames into the room.
     var mash_every = mp_test_arg("mashevery") != "" ? real(mp_test_arg("mashevery")) : 10;
     var mash_from = mp_test_arg("mashfrom") != "" ? real(mp_test_arg("mashfrom")) : 15;
+    // failz: press Continue on the Game Over screen.
+    if (mp_test_has("failz") && string_pos("room_gameover", room_get_name(room)) == 1 && (f mod 4) == 0)
+        global.input_pressed[4] = 1;
     if (mp_test_has("mash") && !global.mp_ui_open && string_pos("PLACE_", room_get_name(room)) != 1 && !instance_exists(obj_battlecontroller) && (f mod mash_every) == 0 && global.mp_room_frames > mash_from && (!instance_exists(obj_mainchara) || global.interact == 1))
     {
         // Dialogue choices need a direction first.

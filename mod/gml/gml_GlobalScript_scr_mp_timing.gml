@@ -43,6 +43,7 @@ function mp_timing_init()
     global.mp_enc_go_time = -99999;
     global.mp_enc_go_unused = 0;
     global.mp_enc_declined = 0;
+    global.mp_enc_lost = 0;
     global.mp_gate_rbid = array_create(8, -1);
     global.mp_gate_rkey = array_create(8, -1);
     mp_gate_reset();
@@ -103,17 +104,30 @@ function mp_timing_lead()
 {
     var worst = 0;
     var others = false;
-    for (var i = 1; i < 8; i++)
+    global.mp_prtt[global.mp_myid] = global.mp_role == 1 ? 0 : global.mp_rtt;
+    for (var i = 0; i < 8; i++)
     {
-        if (global.mp_pconn[i])
+        if (i != global.mp_myid && global.mp_pconn[i] && mp_in_mask(i))
         {
             others = true;
-            worst = max(worst, global.mp_prtt[i]);
+            // Messages go through the host: half my round trip plus half theirs.
+            worst = max(worst, (global.mp_prtt[global.mp_myid] + global.mp_prtt[i]) / 2);
         }
     }
     if (!others)
         return 0;
-    return clamp((worst * 0.75) + 70, 100, 900);
+    return clamp((worst * 1.25) + 50, 66, 900);
+}
+
+// Host: tells everyone everyone's ping, so a fight led by anyone can time its starts.
+function mp_rtt_share_tick()
+{
+    if (global.mp_role != 1 || (global.mp_frame mod 60) != 0)
+        return;
+    mp_begin(38);
+    for (var i = 0; i < 8; i++)
+        mp_wu16(clamp(global.mp_prtt[i], 0, 65535));
+    mp_send();
 }
 
 // True once the moment has come. In the last frame before it, waits out the remainder here, so
@@ -157,7 +171,15 @@ function mp_hold_start(kind)
         surface_free(global.mp_hold_snap);
     if (!surface_exists(global.mp_hold_snap))
         global.mp_hold_snap = surface_create(w, h);
-    surface_copy(global.mp_hold_snap, 0, 0, application_surface);
+    // Copied with blending off: the picture's alpha channel is uneven, and a blended copy would dim
+    // it and let the previous freeze's picture show through.
+    surface_set_target(global.mp_hold_snap);
+    shader_reset();
+    gpu_set_blendenable(false);
+    draw_set_alpha(1);
+    draw_surface_ext(application_surface, 0, 0, 1, 1, 0, c_white, 1);
+    gpu_set_blendenable(true);
+    surface_reset_target();
     ds_list_clear(global.mp_hold_list);
     // Persistent objects (the game's clock, music, this mod) keep running. Only what we switched
     // off is switched back on: the game has things of its own that it keeps switched off.
@@ -192,8 +214,16 @@ function mp_hold_draw()
 {
     if (!global.mp_hold || !surface_exists(global.mp_hold_snap))
         return;
+    // Exactly the pixels of the last frame. Blending would mix in the picture's own alpha channel
+    // (the game's semi-transparent sprites leave it uneven) and the screen would visibly change.
+    // Whatever draw settings the game's last object left behind must not count either.
     var cam = view_camera[0];
+    shader_reset();
+    gpu_set_blendenable(false);
+    draw_set_alpha(1);
+    draw_set_color(c_white);
     draw_surface_stretched(global.mp_hold_snap, camera_get_view_x(cam), camera_get_view_y(cam), camera_get_view_width(cam), camera_get_view_height(cam));
+    gpu_set_blendenable(true);
 }
 
 // Start of every frame, before any game code runs. True while the game stays frozen this frame.
@@ -242,13 +272,14 @@ function mp_hold_tick()
     mp_host_turn_check();
     mp_gate_host_tick();
     mp_client_gate_fallback();
-    if (global.mp_role == 1 && global.mp_bwait)
+    if (mp_b_lead() && global.mp_bwait)
     {
         var bn = mp_bwait_names();
         if ((global.mp_frame mod 30) == 0 || bn != global.mp_bwait_names_sent)
         {
             global.mp_bwait_names_sent = bn;
             mp_begin(35);
+            mp_wu16(global.mp_gid);
             mp_wstr(bn);
             mp_send();
         }
@@ -274,15 +305,12 @@ function mp_phase_gate_check()
     if (key <= global.mp_gate_done)
         return false;
     global.mp_gate_key = key;
-    mp_begin(48);
+    mp_begin_b(48);
     mp_wu16(global.mp_bid);
     mp_wu16(key);
     mp_send();
-    if (global.mp_role == 1)
-    {
-        global.mp_gate_rbid[0] = global.mp_bid;
-        global.mp_gate_rkey[0] = key;
-    }
+    global.mp_gate_rbid[global.mp_myid] = global.mp_bid;
+    global.mp_gate_rkey[global.mp_myid] = key;
     // The host already said go (it stopped waiting for this game): just catch up.
     if (global.mp_gate_go_bid == global.mp_bid && global.mp_gate_go_key >= key && (global.mp_gate_go_at - mp_clock_now()) <= 0)
     {
@@ -319,8 +347,10 @@ function mp_gate_waits_for(i, k)
 {
     if (global.mp_gate_rbid[i] == global.mp_bid && global.mp_gate_rkey[i] >= k)
         return false;
-    if (i != 0)
+    if (i != global.mp_myid)
     {
+        if (!mp_in_mask(i))
+            return false;
         // Not in this battle, or joined late and enters at the next turn.
         if (global.mp_tdone_bid[i] != global.mp_bid || global.mp_tdone_late[i] || global.mp_tdone_turn[i] < floor(k / 4))
             return false;
@@ -335,7 +365,7 @@ function mp_gate_waits_for(i, k)
 // slowly, gone quiet) holds the others up for at most 15 seconds, and catches up when they get there.
 function mp_gate_host_tick()
 {
-    if (global.mp_role != 1 || !global.mp_b_active)
+    if (!mp_b_lead() || !global.mp_b_active)
         return;
     var k = -1;
     for (var i = 0; i < 8; i++)
@@ -356,6 +386,7 @@ function mp_gate_host_tick()
         if ((global.mp_frame mod 30) == 0)
         {
             mp_begin(35);
+            mp_wu16(global.mp_gid);
             mp_wstr(names);
             mp_send();
         }
@@ -365,7 +396,7 @@ function mp_gate_host_tick()
     }
     var at = mp_clock_now() + mp_timing_lead();
     global.mp_gate_sent_key = k;
-    mp_begin(49);
+    mp_begin_b(49);
     mp_wu16(global.mp_bid);
     mp_wu16(k);
     mp_wf64(at);
@@ -387,13 +418,38 @@ function mp_enc_gate()
     {
         global.mp_enc_waiting = 1;
         global.mp_enc_since = current_time;
-        // Call the others over now: the battle scene itself only begins after the horn.
-        if (!global.mp_battle_pulled && !global.mp_battle_seen && (global.mp_sstate == 0 || global.mp_sstate == 1))
+        if (!global.mp_battle_pulled)
         {
-            global.mp_battle_seen = 1;
-            mp_send_pull(1);
+            // A friend's fight right here: this is the same fight now, no second one.
+            var near = global.mp_open ? mp_nearby_fight() : -1;
+            if (near >= 0)
+            {
+                mp_join_request(near);
+                mp_enc_cancel();
+                return false;
+            }
+            // Call over whoever comes along: the battle scene itself only begins after the horn.
+            if (global.mp_gid == 0)
+            {
+                mp_gid_ensure(global.mp_open ? mp_nearby_mask() : 255, 0);
+                if (global.mp_open)
+                    mp_party_set_local(mp_party_of(global.mp_b_mask));
+            }
+            if (!global.mp_battle_seen && (global.mp_sstate == 0 || global.mp_sstate == 1))
+            {
+                global.mp_battle_seen = 1;
+                mp_send_pull(1);
+            }
         }
         mp_enc_send_ready(1);
+    }
+    // Another player touched this same enemy at the same moment: the lower number gets it.
+    if (global.mp_enc_lost)
+    {
+        global.mp_enc_lost = 0;
+        mp_log("encounter: the other player got this enemy");
+        mp_enc_cancel();
+        return false;
     }
     if (global.mp_enc_go_unused && (current_time - global.mp_enc_go_time) < 10000)
     {
@@ -401,44 +457,63 @@ function mp_enc_gate()
             return false;
         global.mp_enc_go_unused = 0;
         global.mp_enc_waiting = 0;
-        // Two players touched different enemies at once: everyone fights the first one.
         global.encounterno = global.mp_enc_go_no;
         mp_sync_log("horn");
         return true;
     }
     if ((current_time - global.mp_enc_since) > 7000)
     {
-        mp_log("encounter start: no answer from the host, going ahead");
+        // Called to a fight that ended meanwhile: nothing to join.
+        if (global.mp_battle_pulled)
+        {
+            mp_log("encounter: the fight I was called to is gone");
+            mp_enc_cancel();
+            return false;
+        }
+        mp_log("encounter start: nobody answered, going ahead");
         global.mp_enc_waiting = 0;
         return true;
     }
     return false;
 }
 
+// This player won't fight this encounter after all: back to walking around.
+function mp_enc_cancel()
+{
+    global.mp_enc_waiting = 0;
+    global.mp_enc_go_unused = 0;
+    global.mp_battle_pulled = 0;
+    global.mp_battle_seen = 0;
+    mp_party_restore();
+    mp_gid_clear();
+    global.interact = 0;
+    instance_destroy();
+}
+
 // flag 1: I'm at the start point. 2: I can't come (title screen, for example).
 function mp_enc_send_ready(flag)
 {
-    if (global.mp_role == 1)
+    if (mp_b_lead())
     {
-        mp_enc_host_ready(0, global.encounterno, flag);
+        mp_enc_lead_ready(global.mp_myid, global.encounterno, flag);
         return;
     }
-    mp_begin(50);
+    mp_begin_b(50);
     mp_ws16(global.encounterno);
     mp_wu8(flag);
     mp_send();
 }
 
-function mp_enc_host_ready(i, enc, flag)
+function mp_enc_lead_ready(i, enc, flag)
 {
     if (!global.mp_enc_open)
     {
         if (flag == 2)
             return;
-        // Arriving after the encounter already started (a late joiner): go straight away.
+        // Arriving after the encounter already started (someone joining later): go straight away.
         if (mp_in_battle_scene() && !global.mp_enc_waiting)
         {
-            mp_enc_send_go(enc);
+            mp_enc_send_go(global.encounterno);
             return;
         }
         global.mp_enc_open = 1;
@@ -450,15 +525,20 @@ function mp_enc_host_ready(i, enc, flag)
     global.mp_enc_ready[i] = flag;
 }
 
-function mp_enc_host_tick()
+function mp_enc_lead_tick()
 {
-    if (global.mp_role != 1 || !global.mp_enc_open)
+    if (!global.mp_enc_open)
         return;
+    if (!mp_b_lead())
+    {
+        global.mp_enc_open = 0;
+        return;
+    }
     if ((current_time - global.mp_enc_open_since) < 5000)
     {
         for (var i = 0; i < 8; i++)
         {
-            if (global.mp_pconn[i] && !global.mp_enc_ready[i])
+            if (mp_in_mask(i) && global.mp_pconn[i] && !global.mp_enc_ready[i])
                 return;
         }
     }
@@ -469,7 +549,7 @@ function mp_enc_host_tick()
 function mp_enc_send_go(enc)
 {
     var at = mp_clock_now() + mp_timing_lead();
-    mp_begin(51);
+    mp_begin_b(51);
     mp_ws16(enc);
     mp_wf64(at);
     mp_send();
@@ -490,7 +570,7 @@ function mp_timing_recv(type, from, b)
     {
         var bid = buffer_read(b, buffer_u16);
         var key = buffer_read(b, buffer_u16);
-        if (global.mp_role == 1 && from >= 0 && from < 8)
+        if (from >= 0 && from < 8)
         {
             global.mp_gate_rbid[from] = bid;
             global.mp_gate_rkey[from] = key;
@@ -502,6 +582,7 @@ function mp_timing_recv(type, from, b)
         var bid2 = buffer_read(b, buffer_u16);
         var key2 = buffer_read(b, buffer_u16);
         var at = buffer_read(b, buffer_f64);
+        global.mp_gate_sent_key = max(global.mp_gate_sent_key, key2);
         global.mp_gate_go_bid = bid2;
         global.mp_gate_go_key = key2;
         global.mp_gate_go_at = at;
@@ -511,8 +592,8 @@ function mp_timing_recv(type, from, b)
     {
         var enc = buffer_read(b, buffer_s16);
         var flag = buffer_read(b, buffer_u8);
-        if (global.mp_role == 1 && from >= 0 && from < 8)
-            mp_enc_host_ready(from, enc, flag);
+        if (mp_b_lead() && from >= 0 && from < 8)
+            mp_enc_lead_ready(from, enc, flag);
         return;
     }
     if (type == 51) // encounter: start at this moment

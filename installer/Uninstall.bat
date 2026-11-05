@@ -1,7 +1,13 @@
 @echo off
+rem Removes the patched copy of the game. The mod's own saves are kept unless you delete them yourself:
+rem %LOCALAPPDATA%\DELTARUNE_ONLINE
 setlocal
-set "GAME=%~1"
-if "%GAME%"=="" set "GAME=C:\Program Files (x86)\Steam\steamapps\common\DELTARUNE"
-if not exist "%GAME%\chapter1_windows" set /p "GAME=Paste the path of your DELTARUNE folder: "
-"%~dp0drm-patcher.exe" uninstall "%GAME%"
+echo This deletes the patched copy in %LOCALAPPDATA%\DeltaruneOnline.
+echo Your Steam copy and normal saves were never changed.
+set /p "OK=Type YES to delete it: "
+if /i not "%OK%"=="YES" goto :end
+rmdir /s /q "%LOCALAPPDATA%\DeltaruneOnline"
+del "%~dp0Play DELTARUNE Online.bat" 2>nul
+echo Done.
+:end
 pause

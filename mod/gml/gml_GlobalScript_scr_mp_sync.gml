@@ -128,8 +128,8 @@ function mp_send_pull(kind)
 // Sends a pull to one peer (a struct), or to everyone.
 function mp_send_pull_to(kind, sock)
 {
-    var px = 0;
-    var py = 0;
+    var px = global.mp_my_x;
+    var py = global.mp_my_y;
     if (instance_exists(obj_mainchara))
     {
         px = obj_mainchara.x;
@@ -164,6 +164,10 @@ function mp_send_pull_to(kind, sock)
     for (var i = 0; i < 3; i++)
         mp_wu8(party[i]);
     mp_wu8(dz);
+    mp_wu16(kind == 1 ? global.mp_gid : 0);
+    mp_wu8(global.mp_pull_mask >= 0 ? global.mp_pull_mask : (kind == 1 ? global.mp_b_mask : 255));
+    mp_wu8(kind == 1 ? global.mp_b_story : 0);
+    mp_wu8(kind == 1 ? global.mp_b_leader : 0);
     if (is_struct(sock))
         mp_send_to(sock);
     else
@@ -191,11 +195,28 @@ function mp_sync_recv(type, from, b)
 {
     if (type == 35) // who the host's turn barrier waits for
     {
+        var ngid = buffer_read(b, buffer_u16);
         var nn = buffer_read(b, buffer_string);
+        if (ngid != global.mp_gid)
+            return;
         if (nn != global.mp_bwait_names)
             mp_log("barrier waits for: " + nn);
         global.mp_bwait_names = nn;
         global.mp_bwait_names_time = current_time;
+        return;
+    }
+    if (type == 38) // everyone's ping
+    {
+        for (var rp = 0; rp < 8; rp++)
+            global.mp_prtt[rp] = buffer_read(b, buffer_u16);
+        return;
+    }
+    if (type == 39) // the host's battle setting
+    {
+        var was_open = global.mp_open;
+        global.mp_open = buffer_read(b, buffer_u8);
+        if (was_open != global.mp_open)
+            mp_notify(global.mp_open ? "Host set battles to: open-world" : "Host set battles to: everyone gets pulled in");
         return;
     }
     if (type == 36) // an overworld enemy was touched in the sender's game
@@ -205,6 +226,9 @@ function mp_sync_recv(type, from, b)
         var gx = buffer_read(b, buffer_s16);
         var gy = buffer_read(b, buffer_s16);
         mp_log("enemy " + gnm + " from " + string(gx) + "," + string(gy) + " was touched by " + string(from) + " in " + room_get_name(grm));
+        // Both touched the same enemy at the same moment, too far apart to fight together.
+        if (global.mp_enc_waiting && !global.mp_battle_pulled && from < global.mp_myid && global.mp_my_touch == (string(grm) + gnm + string(gx) + "," + string(gy)))
+            global.mp_enc_lost = 1;
         mp_enemy_gone_add(grm, gnm, gx, gy);
         if (grm == room)
             mp_enemy_gone_apply();
@@ -215,8 +239,11 @@ function mp_sync_recv(type, from, b)
         global.mp_pmus[from] = buffer_read(b, buffer_string);
         return;
     }
-    if (type == 37) // the host's music clock
+    if (type == 37) // the music clock of the host or of my fight's leader
     {
+        var mgid = buffer_read(b, buffer_u16);
+        if (mgid != global.mp_gid)
+            return;
         global.mp_ms_song = buffer_read(b, buffer_string);
         global.mp_ms_pos = buffer_read(b, buffer_f64);
         global.mp_ms_room = buffer_read(b, buffer_u16);
@@ -238,11 +265,34 @@ function mp_sync_recv(type, from, b)
         for (var i = 0; i < 3; i++)
             party[i] = buffer_read(b, buffer_u8);
         var pdz = buffer_read(b, buffer_u8);
+        var pgid = buffer_read(b, buffer_u16);
+        var pmask = buffer_read(b, buffer_u8);
+        var pstory = buffer_read(b, buffer_u8);
+        var plead = buffer_read(b, buffer_u8);
+        // Not invited: this fight isn't mine (it's how a far-away player stays out of it).
+        if (kind == 1 && ((pmask >> global.mp_myid) & 1) == 0)
+            return;
+        // Two of us started the same fight at the same moment: the lower id is the fight.
+        if (kind == 1 && global.mp_gid != 0)
+        {
+            if (pgid < global.mp_gid && (global.mp_enc_waiting || (global.mp_b_active && global.mp_tgo_sent < 0)))
+            {
+                mp_log("same fight as " + string(from) + ": taking its id");
+                global.mp_gid = pgid;
+                global.mp_b_leader = plead;
+                global.mp_b_mask |= pmask;
+                if (global.mp_enc_waiting)
+                    mp_enc_send_ready(1);
+                else
+                    mp_send_tdone(0, 0);
+            }
+            return;
+        }
         if (is_array(global.mp_pull) && global.mp_pull[0] == 1 && kind != 1)
             return; // a pending battle pull wins
         if (!mp_room_ok(rm))
             return;
-        global.mp_pull = [kind, from, rm, px, py, enc, plot, 0, entry, party, pdz];
+        global.mp_pull = [kind, from, rm, px, py, enc, plot, 0, entry, party, pdz, pgid, pmask, pstory, plead];
         mp_log("got pull kind=" + string(kind) + " from=" + string(from) + " sst=" + string(global.mp_sstate) + " ia=" + string(global.interact));
         mp_sync_try_pull();
         return;
@@ -346,12 +396,15 @@ function mp_music_tick()
 // same room or battle moves its playback to match, and changes song if it stays on a different one.
 function mp_music_clock_tick()
 {
-    if (global.mp_role == 1)
+    // In a fight its leader's music is the fight's; otherwise the host's is the world's.
+    var in_fight = mp_in_battle_scene() && global.mp_gid != 0;
+    if (in_fight ? mp_b_lead() : (global.mp_role == 1))
     {
         if ((global.mp_frame mod 30) != 0)
             return;
         var nm = mp_music_name();
         mp_begin(37);
+        mp_wu16(in_fight ? global.mp_gid : 0);
         mp_wstr(nm);
         mp_wf64(nm != "" ? audio_sound_get_track_position(global.currentsong[1]) : 0);
         mp_wu16(room);
@@ -463,6 +516,14 @@ function mp_sync_try_pull()
         return;
     var kind = p[0];
     var from = p[1];
+    // A story cutscene while I'm fighting: come along when the fight is over, if it's still on.
+    if (kind == 2 && global.mp_open && (mp_in_battle_scene() || global.mp_enc_waiting))
+    {
+        global.mp_pull[7] += 1;
+        if (global.mp_pull[7] > 3600 || ((global.mp_pstate[from] & 2) == 0 && global.mp_pull[7] > 150))
+            global.mp_pull = -1;
+        return;
+    }
     if (mp_in_battle_scene() || global.mp_battle_pulled)
     {
         global.mp_pull = -1;
@@ -562,14 +623,23 @@ function mp_sync_try_pull()
     var pp = p[9];
     var dz_changed = mp_dz_take(p[10]);
     var party_changed = false;
+    var local_party = kind == 1 && global.mp_open && !p[13];
     for (var i = 0; i < 3; i++)
     {
         if (global.char[i] != pp[i])
             party_changed = true;
-        mp_var_apply(vc, i, pp[i]);
+        if (!local_party)
+            mp_var_apply(vc, i, pp[i]);
     }
     if (kind == 1)
     {
+        global.mp_gid = p[11];
+        global.mp_b_mask = p[12] | (1 << global.mp_myid);
+        global.mp_b_story = p[13];
+        global.mp_b_leader = p[14];
+        global.mp_tgo_sent = -1;
+        if (local_party)
+            mp_party_set_local(pp);
         with (obj_mainchara)
             visible = 1;
         global.interact = 0;
@@ -728,7 +798,10 @@ function mp_sync_tick()
     {
         global.mp_battle_seen = 1;
         if (!global.mp_battle_pulled && (global.mp_sstate == 0 || global.mp_sstate == 1))
+        {
+            mp_gid_ensure(255, !instance_exists(obj_testoverworldenemy));
             mp_send_pull(1);
+        }
     }
     if (!battle && global.mp_battle_seen && !instance_exists(obj_battlecontroller) && !instance_exists(obj_testoverworldenemy))
     {
@@ -1038,6 +1111,8 @@ function mp_status_line()
         return "";
     if (global.mp_enc_waiting)
         return mp_timing_status();
+    if (global.mp_join_target >= 0)
+        return "Press Z to join " + global.mp_pname[global.mp_join_target] + "'s fight";
     var bs = mp_battle_status();
     if (bs != "")
         return bs;

@@ -136,6 +136,8 @@ mp_choice_step();
 (function scr_load\([^)]*\)\s*\{)
 @with
 $1
+    if (mp_wipe_return())
+        return;
     mp_on_save_loaded();
 @end
 
@@ -208,3 +210,7 @@ mp_enemy_touched();
 @prepend gml_Object_obj_testoverworldenemy_Step_0
 if (con == 1 && !mp_enc_gate())
     exit;
+
+;; A fight's own party: the intro shows who is really in it.
+@append gml_Object_obj_encounterbasic_Create_0
+mp_intro_markers();

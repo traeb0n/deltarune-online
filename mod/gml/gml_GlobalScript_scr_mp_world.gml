@@ -475,7 +475,7 @@ function mp_ghosts_update()
     var board = mp_board_on();
     for (var i = 0; i < 8; i++)
     {
-        var want = showall && i != global.mp_myid && global.mp_pconn[i] && global.mp_proom[i] == room && global.mp_pvis[i] && (global.mp_pstate[i] & 3) == 0 && sprite_exists(global.mp_pspr[i]);
+        var want = showall && i != global.mp_myid && global.mp_pconn[i] && global.mp_proom[i] == room && (global.mp_pvis[i] || (global.mp_open && (global.mp_pstate[i] & 1))) && (global.mp_pstate[i] & 3) == 0 && sprite_exists(global.mp_pspr[i]);
         // Board pieces only show on the board, and only on the board screen I'm looking at.
         if (want && (((global.mp_pstate[i] & 16) != 0) != board))
             want = false;
@@ -502,6 +502,8 @@ function mp_ghosts_update()
 
 function mp_world_tick()
 {
+    mp_entry_tick();
+    mp_join_tick();
     if (global.mp_battle_pulled && !mp_in_battle_scene())
         mp_kill_scenes();
     if (global.mp_warp_delay > 0)
@@ -832,7 +834,7 @@ function mp_vars_reset_shadow()
 // triggering in their games.
 function mp_vars_can_sync()
 {
-    return global.mp_sstate == 0 && global.mp_classify == 0 && !mp_in_battle_scene();
+    return global.mp_sstate == 0 && global.mp_classify == 0 && !mp_in_battle_scene() && !global.mp_party_local;
 }
 
 // Story flags below 60 are settings / transient battle state and stay local.
@@ -881,6 +883,7 @@ function mp_vars_tick()
         return;
     // Apply changes that arrived while we were busy.
     mp_vars_apply_queue();
+    mp_items_apply();
     if ((global.mp_frame mod 2) != 0)
         return;
     mp_vars_send_changes(false);
@@ -1143,7 +1146,12 @@ function mp_var_apply(v, idx, val, incremental = false)
         }
         if (nm == "plot" && cur != val)
             global.mp_plot_remote = global.mp_frame;
-        variable_global_set(nm, val);
+        // Gold I earned or spent that hasn't gone out yet stays on top of what comes in: two fights
+        // ending together must both pay out.
+        var mine = 0;
+        if (nm == "gold" && incremental && is_real(val) && is_real(cur) && is_real(global.mp_vshadow[v]))
+            mine = cur - global.mp_vshadow[v];
+        variable_global_set(nm, val + mine);
         global.mp_vshadow[v] = val;
     }
     return true;
@@ -1376,6 +1384,7 @@ function mp_enemy_touched()
         return;
     var nm = object_get_name(object_index);
     mp_log("touched enemy " + nm + " from " + string(xstart) + "," + string(ystart));
+    global.mp_my_touch = string(room) + nm + string(xstart) + "," + string(ystart);
     mp_enemy_gone_add(room, nm, xstart, ystart);
     mp_begin(36);
     mp_wu16(room);
