@@ -540,6 +540,7 @@ function mp_world_tick()
 // Moves the local player to (rm, xx, yy). action: 0 none, 1 start pulled battle.
 function mp_warp(rm, xx, yy, action)
 {
+    mp_log("warp to " + room_get_name(rm) + " " + string(xx) + "," + string(yy) + " action=" + string(action) + " from " + room_get_name(room));
     global.mp_warp_x = xx;
     global.mp_warp_y = yy;
     global.mp_warp_action = action;

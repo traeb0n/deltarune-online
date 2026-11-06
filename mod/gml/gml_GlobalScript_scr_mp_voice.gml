@@ -21,6 +21,11 @@ function mp_voice_init()
     global.mp_v_gate_until = 0;
     global.mp_v_test = 0;
     global.mp_v_nomic_told = 0;
+    global.mp_v_retry_at = 0;
+    global.mp_v_failed_told = 0;
+    global.mp_v_bytes = 0;
+    global.mp_v_peak = 0;
+    global.mp_v_listed = 0;
     global.mp_v_tone = 0;
     global.mp_v_tonebuf = -1;
     global.mp_v_q = array_create(8, -1);
@@ -63,9 +68,22 @@ function mp_voice_mic_on()
 {
     if (global.mp_v_rec >= 0)
         return;
+    // Opening a microphone is slow: after a failure, try again only every few seconds (trying
+    // every frame made the whole game stutter).
+    if (current_time < global.mp_v_retry_at)
+        return;
     var n = audio_get_recorder_count();
+    if (!global.mp_v_listed)
+    {
+        global.mp_v_listed = 1;
+        var names = "";
+        for (var i = 0; i < n; i++)
+            names += " [" + string(i + 1) + "] " + mp_voice_rec_name(i);
+        mp_log("mic: " + string(n) + " found:" + names);
+    }
     if (n <= 0)
     {
+        global.mp_v_retry_at = current_time + 5000;
         if (!global.mp_v_nomic_told)
         {
             global.mp_v_nomic_told = 1;
@@ -73,7 +91,23 @@ function mp_voice_mic_on()
         }
         return;
     }
-    global.mp_v_rec = audio_start_recording(clamp(global.mp_cfg_vmic, 0, n - 1));
+    var idx = clamp(global.mp_cfg_vmic, 0, n - 1);
+    var r = audio_start_recording(idx);
+    if (!is_real(r) || r < 0)
+    {
+        global.mp_v_rec = -1;
+        global.mp_v_retry_at = current_time + 3000;
+        mp_log("mic: couldn't open " + mp_voice_rec_name(idx) + " (" + string(r) + ")");
+        if (!global.mp_v_failed_told)
+        {
+            global.mp_v_failed_told = 1;
+            mp_notify("Couldn't open the microphone. Check Windows microphone privacy settings, or pick another mic in F9 > Settings.");
+        }
+        return;
+    }
+    global.mp_v_rec = r;
+    global.mp_v_bytes = 0;
+    mp_log("mic: opened " + mp_voice_rec_name(idx) + " as channel " + string(r));
 }
 
 function mp_voice_mic_off()
@@ -85,6 +119,16 @@ function mp_voice_mic_off()
     global.mp_v_outn = 0;
     global.mp_v_energy = 0;
     global.mp_v_hascarry = false;
+}
+
+function mp_voice_rec_name(i)
+{
+    var info = audio_get_recorder_info(i);
+    if (!ds_exists(info, ds_type_map))
+        return "Microphone " + string(i + 1);
+    var nm = ds_map_find_value(info, "name");
+    ds_map_destroy(info);
+    return is_undefined(nm) ? "Microphone " + string(i + 1) : string(nm);
 }
 
 // The microphone's name, for the settings page.
@@ -108,7 +152,9 @@ function mp_voice_recorded()
 {
     if (global.mp_v_rec < 0 || ds_map_find_value(async_load, "channel_index") != global.mp_v_rec)
         return;
-    mp_voice_feed(ds_map_find_value(async_load, "buffer_id"), 0, ds_map_find_value(async_load, "data_len"));
+    var len = ds_map_find_value(async_load, "data_len");
+    global.mp_v_bytes += len;
+    mp_voice_feed(ds_map_find_value(async_load, "buffer_id"), 0, len);
 }
 
 // 16 kHz samples in, 8 kHz mu-law packets out.
@@ -144,6 +190,7 @@ function mp_voice_packet()
     var avg = global.mp_v_energy / n;
     global.mp_v_energy = 0;
     global.mp_v_level = max(avg, global.mp_v_level * 0.7);
+    global.mp_v_peak = max(global.mp_v_peak, avg);
     // Mic test: hear myself, nothing leaves this game.
     if (global.mp_v_test)
     {
@@ -375,6 +422,13 @@ function mp_voice_tick()
     else
         mp_voice_mic_off();
     mp_voice_test_tone();
+    // Every 5 s with the mic open: is sound arriving, and is it loud enough to be sent?
+    if ((global.mp_frame mod 150) == 0 && global.mp_v_rec >= 0)
+    {
+        mp_log("mic: " + string(global.mp_v_bytes) + " bytes in 5 s, loudest " + string(round(global.mp_v_peak)) + (global.mp_cfg_vmode == 2 ? " (open mic sends above " + string(mp_voice_gate_level()) + ")" : "") + ", packets sent " + string(global.mp_v_seq));
+        global.mp_v_bytes = 0;
+        global.mp_v_peak = 0;
+    }
     if ((global.mp_frame mod 5) != 0)
         return;
     global.mp_v_level *= 0.8;

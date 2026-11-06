@@ -8,6 +8,7 @@ function mp_init()
     global.mp_version = 6;
     global.mp_chapter = __CHAPTER__;
     global.mp_frame = 0;
+    mp_filelog_init();
     global.mp_notes = ds_list_create();
     global.mp_note_time = ds_list_create();
     global.mp_pconn = array_create(8, 0);
@@ -209,6 +210,7 @@ function mp_char_max()
 
 function mp_notify(text)
 {
+    mp_log("[note] " + text);
     ds_list_add(global.mp_notes, text);
     ds_list_add(global.mp_note_time, current_time);
     while (ds_list_size(global.mp_notes) > 5)
@@ -539,6 +541,11 @@ function mp_tick()
 // obj_mp_controller End Step.
 function mp_end_tick()
 {
+    // A frame that took far longer than it should (the game runs at 30 a second): what was going on.
+    if (delta_time > 150000 && global.mp_frame > 90)
+        mp_log("hitch " + string(round(delta_time / 1000)) + " ms: room=" + room_get_name(room) + " interact=" + string(global.interact) + " sync=" + string(global.mp_sstate) + " battle=" + string(mp_in_battle_scene()) + " mic=" + string(global.mp_v_rec) + " players=" + string(mp_player_count()));
+    if ((global.mp_frame mod 300) == 0)
+        mp_filelog_flush();
     mp_voice_tick();
     if (global.mp_role == 0)
         return;

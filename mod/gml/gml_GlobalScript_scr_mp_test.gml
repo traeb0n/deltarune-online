@@ -469,8 +469,46 @@ function mp_test_input()
 
 function mp_log(s)
 {
-    if (global.mp_test != "" && mp_test_has("log"))
-        show_debug_message("[MPD f=" + string(global.mp_frame) + " t=" + string(current_time) + "] " + s);
+    var line = "[MPD f=" + string(global.mp_frame) + " t=" + string(current_time) + "] " + s;
+    if (variable_global_exists("mp_test") && global.mp_test != "" && mp_test_has("log"))
+        show_debug_message(line);
+    if (variable_global_exists("mp_logq") && global.mp_log_lines < 50000)
+    {
+        array_push(global.mp_logq, line);
+        global.mp_log_lines += 1;
+    }
+}
+
+// Every session writes multiplayer_log.txt next to the save files (the one before is kept as
+// multiplayer_log_prev.txt), so a problem in real play can be looked into afterwards.
+function mp_filelog_init()
+{
+    global.mp_logq = [];
+    global.mp_log_lines = 0;
+    if (file_exists("multiplayer_log.txt"))
+    {
+        if (file_exists("multiplayer_log_prev.txt"))
+            file_delete("multiplayer_log_prev.txt");
+        file_rename("multiplayer_log.txt", "multiplayer_log_prev.txt");
+    }
+    mp_log("session start: chapter " + string(__CHAPTER__) + ", " + date_datetime_string(date_current_datetime()) + ", mod protocol " + string(global.mp_version));
+}
+
+function mp_filelog_flush()
+{
+    if (!variable_global_exists("mp_logq") || array_length(global.mp_logq) == 0)
+        return;
+    var fh = file_text_open_append("multiplayer_log.txt");
+    if (fh >= 0)
+    {
+        for (var i = 0; i < array_length(global.mp_logq); i++)
+        {
+            file_text_write_string(fh, global.mp_logq[i]);
+            file_text_writeln(fh);
+        }
+        file_text_close(fh);
+    }
+    global.mp_logq = [];
 }
 
 function mp_test_battle_created()

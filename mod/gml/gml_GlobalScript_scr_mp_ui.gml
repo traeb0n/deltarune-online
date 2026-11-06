@@ -300,6 +300,9 @@ function mp_ui_adjust(row, d)
         case "vmic":
             mp_voice_mic_off();
             global.mp_cfg_vmic = (global.mp_cfg_vmic + d + max(1, audio_get_recorder_count())) mod max(1, audio_get_recorder_count());
+            // A new choice is tried at once, even right after the last one failed to open.
+            global.mp_v_retry_at = 0;
+            global.mp_v_failed_told = 0;
             break;
         case "vvol":
             global.mp_cfg_vvol = clamp(global.mp_cfg_vvol + (d * 10), 0, 200);
