@@ -1,6 +1,9 @@
 if (pid < 0 || !sprite_exists(sprite_index))
     exit;
 draw_sprite_ext(sprite_index, image_index, x, y, image_xscale, image_yscale, 0, c_white, 1);
+// A follower: just the figure, no name tag.
+if (fol >= 0)
+    exit;
 // In a fight: a slow white pulse, so it reads as "busy" rather than a figure standing around.
 var fighting = mp_ghost_fighting(pid);
 if (fighting)

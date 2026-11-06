@@ -16,6 +16,11 @@ function mp_world_init()
     global.mp_need_warp = 0;
     global.mp_warp_delay = 0;
     global.mp_fol_mask = 0;     // party followers drawn this frame, by the character shown
+    global.mp_swap_prev = 1;
+    global.mp_swap_fade = -1;       // [sprite, frame, x, y, xscale, yscale, start time]
+    global.mp_swap_told = 0;
+    global.mp_npcfol = [];      // host: followers nobody plays, as drawn last frame (sent to the others)
+    global.mp_npcfol_cur = [];
     global.mp_fol_last = 0;
     mp_vars_init();
 }
@@ -163,6 +168,7 @@ function mp_draw_swapped(spr, img, xx, yy, xs, ys, col, alpha, record)
     if (nf > 0)
         fr = floor(img) mod nf;
     draw_sprite_ext(spr, fr, dx, dy, xs, ys, 0, col, alpha);
+    global.mp_swap_drawn = [spr, fr, dx, dy];
     if (record)
     {
         global.mp_my_spr = spr;
@@ -219,13 +225,51 @@ function mp_draw_caterpillar()
     // walks around by themselves (drawn as a name-tagged character when in this room).
     if (mp_char_player_other(shown) >= 0)
         return;
+    // Nobody plays this one (Ralsei, with two players): there is one of them, following the host.
+    // The host's game sends it along with the host's position; the others show that one.
+    if (global.mp_role != 1)
+        return;
     global.mp_fol_mask |= 1 << shown;
     if (shown == c)
     {
         draw_self();
+        array_push(global.mp_npcfol_cur, [shown, sprite_index, image_index, x, y, image_xscale, image_yscale]);
         return;
     }
     mp_draw_swapped(mp_swap_sprite(sprite_index, c, shown), image_index, x, y, image_xscale, image_yscale, image_blend, image_alpha, false);
+    var d = global.mp_swap_drawn;
+    array_push(global.mp_npcfol_cur, [shown, d[0], d[1], d[2], d[3], image_xscale, image_yscale]);
+}
+
+// When a story cutscene starts (or ends), my figure turns into the story's (or back): the one I was
+// fades out over the new one instead of changing in a single frame.
+function mp_swap_fade_tick()
+{
+    var en = mp_swaps_enabled();
+    if (en != global.mp_swap_prev && mp_on() && global.mp_cfg_char != 1 && !mp_in_battle_scene() && (global.mp_frame - global.mp_my_drawn) < 3 && sprite_exists(global.mp_my_spr))
+    {
+        global.mp_swap_fade = [global.mp_my_spr, global.mp_my_img, global.mp_my_x, global.mp_my_y, global.mp_my_xs, global.mp_my_ys, current_time];
+        if (!en && !global.mp_swap_told)
+        {
+            global.mp_swap_told = 1;
+            mp_notify("Story cutscenes show the party as the story has it.");
+        }
+    }
+    global.mp_swap_prev = en;
+}
+
+function mp_swap_fade_draw()
+{
+    if (!variable_global_exists("mp_swap_fade") || !is_array(global.mp_swap_fade))
+        return;
+    var f = global.mp_swap_fade;
+    var a = 1 - ((current_time - f[6]) / 400);
+    if (a <= 0 || !sprite_exists(f[0]))
+    {
+        global.mp_swap_fade = -1;
+        return;
+    }
+    draw_sprite_ext(f[0], f[1], f[2], f[3], f[4], f[5], 0, c_white, a);
 }
 
 // Sprite swaps apply outside shared story cutscenes and battles: walking around, talking to
@@ -292,6 +336,42 @@ function mp_go_to_player(pid)
     else
         mp_warp(global.mp_proom[pid], global.mp_pix[pid], global.mp_piy[pid], 0);
     mp_notify("Going to " + global.mp_pname[pid] + ".");
+}
+
+// Host: everyone comes to where I am (as if they all pressed F8).
+function mp_bring_everyone()
+{
+    if (!mp_on() || global.mp_role != 1)
+        return;
+    if (mp_player_count() < 2)
+    {
+        mp_notify("Nobody else is here yet.");
+        return;
+    }
+    if (global.mp_sstate != 0 || mp_in_battle_scene() || !instance_exists(obj_mainchara))
+    {
+        mp_notify("Can't bring everyone during a cutscene or battle.");
+        return;
+    }
+    mp_send_pos(1, -1);
+    mp_begin(61);
+    mp_send();
+    mp_notify("Bringing everyone here.");
+}
+
+// Someone (the host) asked everyone to come over.
+function mp_bring_recv(from)
+{
+    if (from < 0 || from >= 8 || from == global.mp_myid)
+        return;
+    mp_notify(global.mp_pname[from] + " is bringing everyone over.");
+    // Busy (a fight, a cutscene): F8 later does the same.
+    if (global.mp_sstate != 0 || mp_in_battle_scene() || global.mp_warp_pending || !instance_exists(obj_mainchara))
+    {
+        mp_notify("Busy right now: press F8 to go when you're done.");
+        return;
+    }
+    mp_go_to_player(from);
 }
 
 // ---------------------------------------------------------------- positions
@@ -369,7 +449,13 @@ function mp_send_pos(force, sock)
         pys = plinfo[5];
         vis = plinfo[6];
     }
-    var sig = string(room) + "," + string(round(px)) + "," + string(round(py)) + "," + string(pspr) + "," + string(pimg) + "," + string(vis) + "," + string(mp_state_bits());
+    // The followers nobody plays (only the host has them).
+    var fol = (global.mp_role == 1 && vis) ? global.mp_npcfol : [];
+    var nf = min(2, array_length(fol));
+    var fsig = "";
+    for (var f = 0; f < nf; f++)
+        fsig += "|" + string(fol[f][1]) + "," + string(floor(fol[f][2])) + "," + string(round(fol[f][3])) + "," + string(round(fol[f][4]));
+    var sig = string(room) + "," + string(round(px)) + "," + string(round(py)) + "," + string(pspr) + "," + string(pimg) + "," + string(vis) + "," + string(mp_state_bits()) + fsig;
     if (!force && sig == global.mp_pos_last && (current_time - global.mp_pos_time) < 1500)
         return;
     global.mp_pos_last = sig;
@@ -394,6 +480,18 @@ function mp_send_pos(force, sock)
     }
     mp_ws16(ix);
     mp_ws16(iy);
+    mp_wu8(nf);
+    for (var f2 = 0; f2 < nf; f2++)
+    {
+        var e = fol[f2];
+        mp_wu8(e[0]);
+        mp_ws16(e[1]);
+        mp_wu8(floor(e[2]));
+        mp_ws16(e[3]);
+        mp_ws16(e[4]);
+        mp_ws8(e[5] * 10);
+        mp_ws8(e[6] * 10);
+    }
     if (is_struct(sock))
         mp_send_unreliable_to(sock);
     else
@@ -416,6 +514,21 @@ function mp_recv_pos(pid, b)
     global.mp_pstate[pid] = buffer_read(b, buffer_u8);
     global.mp_pix[pid] = buffer_read(b, buffer_s16);
     global.mp_piy[pid] = buffer_read(b, buffer_s16);
+    var nf = buffer_read(b, buffer_u8);
+    var fol = [];
+    for (var f = 0; f < nf; f++)
+    {
+        var e = [];
+        e[0] = buffer_read(b, buffer_u8);
+        e[1] = buffer_read(b, buffer_s16);
+        e[2] = buffer_read(b, buffer_u8);
+        e[3] = buffer_read(b, buffer_s16);
+        e[4] = buffer_read(b, buffer_s16);
+        e[5] = buffer_read(b, buffer_s8) / 10;
+        e[6] = buffer_read(b, buffer_s8) / 10;
+        array_push(fol, e);
+    }
+    global.mp_pfol[pid] = fol;
     global.mp_ppostime[pid] = current_time;
     if (oldroom != global.mp_proom[pid])
     {
@@ -465,6 +578,8 @@ function mp_ghosts_clear()
         instance_destroy();
     for (var i = 0; i < 8; i++)
         global.mp_pghost[i] = -4;
+    for (var j = 0; j < 16; j++)
+        global.mp_pfghost[j] = -4;
 }
 
 // Open-world battles: a friend in a fight stays where they were, so others can walk up and join.
@@ -500,6 +615,28 @@ function mp_ghosts_update()
         else if (!want && instance_exists(g))
         {
             mp_ghost_remove(i);
+        }
+        // Their followers (the host's NPC party members), while they're walking around.
+        var fw = want && global.mp_pvis[i] && (global.mp_pstate[i] & 1) == 0;
+        for (var f = 0; f < 2; f++)
+        {
+            var fol = global.mp_pfol[i];
+            var fwant = fw && is_array(fol) && f < array_length(fol) && sprite_exists(fol[f][1]);
+            var k = (i * 2) + f;
+            var fg = global.mp_pfghost[k];
+            if (fwant && !instance_exists(fg))
+            {
+                fg = instance_create_depth(fol[f][3], fol[f][4], 0, obj_mp_ghost);
+                fg.pid = i;
+                fg.fol = f;
+                global.mp_pfghost[k] = fg;
+            }
+            else if (!fwant && instance_exists(fg))
+            {
+                with (fg)
+                    instance_destroy();
+                global.mp_pfghost[k] = -4;
+            }
         }
     }
 }

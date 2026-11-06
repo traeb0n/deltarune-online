@@ -3,6 +3,31 @@ if (pid < 0)
     instance_destroy();
     exit;
 }
+// A follower of that player (the host's Ralsei, say): where and how their game draws it.
+if (fol >= 0)
+{
+    var fl = global.mp_pfol[pid];
+    if (!is_array(fl) || fol >= array_length(fl))
+        exit;
+    var fe = fl[fol];
+    if (snap || point_distance(x, y, fe[3], fe[4]) > 120)
+    {
+        x = fe[3];
+        y = fe[4];
+        snap = 0;
+    }
+    else
+    {
+        x = lerp(x, fe[3], 0.4);
+        y = lerp(y, fe[4], 0.4);
+    }
+    sprite_index = fe[1];
+    image_index = fe[2];
+    image_xscale = fe[5];
+    image_yscale = fe[6];
+    depth = 100000 - ((y * 10) + (sprite_get_height(sprite_index) * image_yscale * 10));
+    exit;
+}
 var tx = global.mp_px[pid];
 var ty = global.mp_py[pid];
 var board = (global.mp_pstate[pid] & 16) != 0;

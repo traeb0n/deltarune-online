@@ -28,7 +28,7 @@ Online (network) co-op multiplayer for DELTARUNE Chapters 1–5, each player on 
 
 Up to 8 players can connect. Each party member is controlled by one player. Extra players,
 or players whose character isn't in the party, watch (and dodge, harmlessly) in battle.
-The host controls any party member nobody picked.
+The host controls any party member nobody picked. Out of battle, a party member nobody plays (Ralsei, with two players) follows the host, and everyone sees that one.
 
 ## Online multiplayer, not local
 
@@ -88,6 +88,7 @@ The older in-place `drm-patcher install` command still exists.
 3. Joining players are moved next to the host and receive the host's progress.
 
 Handy things:
+* **Shift+F8** (host, or "Bring everyone here" in the F9 menu) brings every player to where the host is. Anyone busy in a fight or cutscene is told to press F8 when they're done.
 * **F8** (or "Go to ..." in the F9 menu) takes you to where the host is (the host goes to the
   first other player). Use it if you get stuck, a puzzle or room is out of step, or you simply
   want to catch up.
@@ -129,7 +130,7 @@ Alternatively, everyone can join the same virtual LAN (Tailscale, ZeroTier, Radm
 use the host's address on that network. A UDP tunnelling service (e.g. playit.gg) also
 works.
 
-Settings are saved in `multiplayer.ini` next to DELTARUNE's save files. For testing, you
+Settings are saved in `multiplayer.ini` next to DELTARUNE's save files, and each session writes `multiplayer_log.txt` there (the one before is kept as `multiplayer_log_prev.txt`): send it along with a bug report. For testing, you
 can also launch a chapter with `-mphost`, `-mpjoin <ip[:port]>`, `-mpname <name>`,
 `-mpchar <1-4>` and `-mpport <port>`.
 
@@ -142,7 +143,7 @@ video or state.
 |---|---|
 | Walking around | Your room, position and current sprite, ~10×/s and only when they change (unreliable, latest wins). Others draw you as a smoothly interpolated "ghost". |
 | Story state | `plot`, flags (≥60), items, key items, equipment, gold, party, HP/stats. Changes are scanned every 2 frames and sent as small deltas. The full state goes out once on join. A player who loads a save re-fetches the host's state, and a host who loads pushes theirs to everyone. |
-| Cutscene | If `global.interact` goes non-zero without the player pressing Z on something (or a door hands straight over to it), it may be a story cutscene. It counts once a new cutscene controller appears or the story progresses within 20 frames, or if it lasts over 4 s (so "you can't go that way" messages don't pull anyone). Others are warped to where it triggered, with the story progress from just before it, so the same cutscene starts in their game; for cutscenes that start on entering a room they enter that room too. Story changes are held back while this is decided, so they can't stop the cutscene from triggering for the others. A player busy with their own cutscene joins afterwards if the other one is still going; pulls from earlier in the story than you are are ignored. If it still doesn't trigger, they watch frozen, see the leader's dialogue, and are released when it ends (or when the leader is walking around again). `obj_choicer_neo` answers follow the leader. |
+| Cutscene | If `global.interact` goes non-zero without the player pressing Z on something (or a door hands straight over to it), it may be a story cutscene. It counts once a new cutscene controller appears or the story progresses within 20 frames, or if it lasts over 4 s (so "you can't go that way" messages don't pull anyone). Others are warped to where it triggered, with the story progress from just before it, so the same cutscene starts in their game; for cutscenes that start on entering a room they enter that room too. Story changes are held back while this is decided, so they can't stop the cutscene from triggering for the others. A player busy with their own cutscene joins afterwards if the other one is still going; pulls from earlier in the story than you are are ignored. If it still doesn't trigger, they watch frozen, see the leader's dialogue, and are released when it ends (or when the leader is walking around again). `obj_choicer_neo` answers follow the leader. Players in the same cutscene read it together: nobody gets more than one text box ahead ("Waiting for ... to read"), someone a box behind moves on by themselves 1.5 s after their box finishes typing, and after 15 s of waiting it goes on anyway. Your character's look fades into the story's party when a cutscene starts. |
 | Battle start | The initiator's encounter number is sent. Others start the same encounter (same music and "!" intro, same party) through an invisible `obj_testoverworldenemy`. Players busy in their own cutscene join after it ends. Late joiners enter at the start of the next turn. |
 | Battle menu | The player who owns the character whose turn it is drives the menu. Their button presses, with the original frame spacing (at least 5 frames apart, so a press the menu would ignore as too early is never accepted in someone else's replay), are replayed in everyone's game, so every game's menu state machine (TP, items, ACT partners, going back with X) stays identical. |
 | Attack timing | Each player presses only for their own character's bolts. Results are shared, and remote bolts wait for their owner's result. Damage is computed identically from the points. |
@@ -157,7 +158,7 @@ One UDP socket. Each datagram (≤1200 bytes) carries a cumulative ack plus a 32
 selective-ack field and any number of records. Reliable records are retransmitted with an
 RTT-based timeout and back-off, at most 4 datagrams per frame. Unreliable records (positions)
 replace older queued ones and are dropped if they arrive out of order. The host is the hub and
-forwards everything to the other players. Protocol version 6 (older versions can't join). Peers time out after 10 s of silence.
+forwards everything to the other players. Protocol version 7 (older versions can't join). Peers time out after 10 s of silence.
 
 ### Source layout
 

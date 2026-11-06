@@ -58,6 +58,16 @@ function mp_sync_init()
     global.mp_ch1ev_active = false;
     global.mp_plot_remote = -1;
     global.mp_pre_master = -1;
+    global.mp_dlg_n = 0;            // text boxes I've read in this shared cutscene
+    global.mp_dlg_key = -1;         // whose cutscene that is (its leader)
+    global.mp_dlg_sent = -1;
+    global.mp_dlg_sent_t = 0;
+    global.mp_dlg_wait_f = 0;       // frames my finished box has been waiting
+    global.mp_dlg_block_since = 0;
+    global.mp_dlg_waitfor = "";
+    global.mp_pdlg_key = array_create(8, -1);
+    global.mp_pdlg_n = array_create(8, 0);
+    global.mp_pdlg_t = array_create(8, -99999);
     global.mp_pre_actors = 0;
     global.mp_last_cs_room = -1;  // the last cutscene that played in my game: room,
     global.mp_last_cs_plot = -1;  // story progress when it started,
@@ -1126,6 +1136,8 @@ function mp_status_line()
         return mp_timing_status();
     if (global.mp_join_target >= 0)
         return "Press Z to join " + global.mp_pname[global.mp_join_target] + "'s fight";
+    if (global.mp_dlg_waitfor != "")
+        return "Waiting for " + global.mp_dlg_waitfor + " to read...";
     var bs = mp_battle_status();
     if (bs != "")
         return bs;
@@ -1185,4 +1197,136 @@ function mp_dialogue_text()
         }
     }
     return string_copy(out, 1, 300);
+}
+
+// ---------------------------------------------------------------- reading cutscenes together
+//
+// Everyone in a shared cutscene runs it in their own game, each reading its text boxes at their own
+// pace, so a fast reader used to get ahead. Now the players in it share how many boxes they've read:
+// nobody gets more than one box ahead ("Waiting for ... to read"), and someone a box behind moves on
+// by themselves 1.5 s after their box has finished typing. After 15 s of waiting, it lets you go anyway.
+
+// A text box that has finished typing and takes Z to go on (checked before its Draw event reads Z).
+function mp_dlg_box_waiting()
+{
+    var w = false;
+    with (obj_writer)
+    {
+        if (halt != 0 && siner > 0 && (!variable_instance_exists(id, "prevent_mash_buffer") || prevent_mash_buffer <= 0))
+            w = true;
+    }
+    return w;
+}
+
+// The others reading the same cutscene as me, as [fewest boxes read, most boxes read, a name of the slowest].
+function mp_dlg_others()
+{
+    var lo = 999999;
+    var hi = -1;
+    var nm = "";
+    for (var i = 0; i < 8; i++)
+    {
+        if (i == global.mp_myid || !global.mp_pconn[i] || global.mp_pdlg_key[i] != global.mp_dlg_key || (global.mp_pstate[i] & 2) == 0)
+            continue;
+        if ((current_time - global.mp_pdlg_t[i]) > 3000)
+            continue;
+        if (global.mp_pdlg_n[i] < lo)
+        {
+            lo = global.mp_pdlg_n[i];
+            nm = global.mp_pname[i];
+        }
+        hi = max(hi, global.mp_pdlg_n[i]);
+    }
+    return [lo, hi, nm];
+}
+
+// After input sampling, every frame.
+function mp_dlg_input()
+{
+    global.mp_dlg_waitfor = "";
+    var inscene = global.mp_sstate == 1 || global.mp_sstate == 2;
+    if (!inscene)
+    {
+        // Out of it: say so, so my count can't hold anyone up in their next cutscene.
+        if (global.mp_dlg_key != -1)
+        {
+            global.mp_dlg_key = -1;
+            mp_dlg_send();
+        }
+        return;
+    }
+    var key = global.mp_sstate == 1 ? global.mp_myid : global.mp_slead;
+    if (key != global.mp_dlg_key)
+    {
+        global.mp_dlg_key = key;
+        global.mp_dlg_n = 0;
+        global.mp_dlg_sent = -1;
+    }
+    if ((global.mp_dlg_sent != global.mp_dlg_n) || (current_time - global.mp_dlg_sent_t) > 1000)
+        mp_dlg_send();
+    if (!mp_dlg_box_waiting())
+    {
+        global.mp_dlg_wait_f = 0;
+        global.mp_dlg_block_since = 0;
+        return;
+    }
+    global.mp_dlg_wait_f += 1;
+    var o = mp_dlg_others();
+    var z = global.input_pressed[4];
+    var auto = false;
+    // Behind someone: catch up by myself after a moment.
+    if (!z && o[1] > global.mp_dlg_n && global.mp_dlg_wait_f >= 45)
+    {
+        z = 1;
+        auto = true;
+    }
+    // Ahead of someone: wait for them (up to 15 s).
+    if (z && o[1] >= 0 && global.mp_dlg_n > o[0])
+    {
+        if (global.mp_dlg_block_since == 0)
+            global.mp_dlg_block_since = current_time;
+        if ((current_time - global.mp_dlg_block_since) < 15000)
+        {
+            global.input_pressed[4] = 0;
+            if (global.mp_dlg_waitfor == "" && global.mp_dlg_block_since == current_time)
+                mp_log("cutscene text: waiting for " + o[2]);
+            global.mp_dlg_waitfor = o[2];
+            return;
+        }
+        mp_log("cutscene text: waited 15 s for " + o[2] + ", going on");
+    }
+    if (z)
+    {
+        global.input_pressed[4] = 1;
+        global.mp_dlg_n += 1;
+        mp_log("cutscene text " + string(global.mp_dlg_n) + (auto ? " (caught up by itself)" : ""));
+        global.mp_dlg_wait_f = 0;
+        global.mp_dlg_block_since = 0;
+        mp_dlg_send();
+    }
+    else if (o[1] >= 0 && global.mp_dlg_n > o[0])
+    {
+        global.mp_dlg_waitfor = o[2];
+    }
+}
+
+function mp_dlg_send()
+{
+    global.mp_dlg_sent = global.mp_dlg_n;
+    global.mp_dlg_sent_t = current_time;
+    mp_begin(60);
+    mp_wu8(global.mp_dlg_key < 0 ? 255 : global.mp_dlg_key);
+    mp_wu16(global.mp_dlg_n);
+    mp_send();
+}
+
+function mp_dlg_recv(from, b)
+{
+    var key = buffer_read(b, buffer_u8);
+    var n = buffer_read(b, buffer_u16);
+    if (from < 0 || from >= 8)
+        return;
+    global.mp_pdlg_key[from] = key;
+    global.mp_pdlg_n[from] = n;
+    global.mp_pdlg_t[from] = current_time;
 }

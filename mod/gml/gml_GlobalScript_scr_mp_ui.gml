@@ -33,7 +33,10 @@ function mp_ui_rows()
     }
     else
     {
-        array_push(r, "goto", "leave");
+        array_push(r, "goto");
+        if (global.mp_role == 1)
+            array_push(r, "bring");
+        array_push(r, "leave");
     }
     array_push(r, "help", "settings", "stopsound", "noclip");
     // Softlock tools that change the shared story: the host's (or a single player's) to use.
@@ -51,7 +54,12 @@ function mp_ui_input()
     if (keyboard_check_pressed(vk_f6) && !global.mp_ui_open)
         mp_noclip_toggle();
     if (keyboard_check_pressed(vk_f8) && !global.mp_ui_open && mp_on())
-        mp_go_to_player(mp_goto_target());
+    {
+        if (keyboard_check(vk_shift) && global.mp_role == 1)
+            mp_bring_everyone();
+        else
+            mp_go_to_player(mp_goto_target());
+    }
     if (keyboard_check_pressed(vk_f9))
     {
         global.mp_ui_open = !global.mp_ui_open;
@@ -226,6 +234,11 @@ function mp_ui_input()
             global.mp_ui_open = 0;
             mp_go_to_player(mp_goto_target());
         }
+        if (row == "bring")
+        {
+            global.mp_ui_open = 0;
+            mp_bring_everyone();
+        }
         if (row == "leave")
         {
             mp_resume_clear();
@@ -333,6 +346,7 @@ function mp_ui_help()
         "C or Ctrl: open the game's menu",
         "F9: this multiplayer menu",
         "F8: go to another player (press twice if you're stuck)",
+        "Shift+F8 (host): bring everyone to where you are",
         "F7: stop all music and sounds, if the music gets out of step",
         "F6: noclip, walk through walls, your game only",
         mp_key_name(global.mp_cfg_vkey) + ": hold to talk (change the key in Settings)",
@@ -445,6 +459,8 @@ function mp_ui_rowtext(row)
             if (gt < 0)
                 return "Go to other player (F8)";
             return "Go to " + global.mp_pname[gt] + "  (F8)";
+        case "bring":
+            return "Bring everyone here  (Shift+F8)";
         case "leave":
             if (global.mp_role == 1)
                 return "Stop hosting";

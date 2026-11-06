@@ -5,7 +5,7 @@ function mp_init()
     if (variable_global_exists("mp_inited"))
         return;
     global.mp_inited = 1;
-    global.mp_version = 6;
+    global.mp_version = 7;
     global.mp_chapter = __CHAPTER__;
     global.mp_frame = 0;
     mp_filelog_init();
@@ -25,6 +25,8 @@ function mp_init()
     global.mp_pstate = array_create(8, 0);
     global.mp_pvis = array_create(8, 0);
     global.mp_pghost = array_create(8, -4);
+    global.mp_pfghost = array_create(16, -4);
+    global.mp_pfol = array_create(8, 0);
     global.mp_ppostime = array_create(8, 0);
     global.mp_pix = array_create(8, 0);
     global.mp_piy = array_create(8, 0);
@@ -438,6 +440,16 @@ function mp_handle(type, sender, b, sock, endpos)
         mp_sync_recv(type, sender, b);
         return;
     }
+    if (type == 61) // the host brings everyone over
+    {
+        mp_bring_recv(sender);
+        return;
+    }
+    if (type == 60) // how far a player has read in a shared cutscene
+    {
+        mp_dlg_recv(sender, b);
+        return;
+    }
     if (type >= 40 && type < 60)
     {
         mp_battle_recv(type, sender, b);
@@ -470,6 +482,8 @@ function mp_after_input()
     global.mp_room_frames += 1;
     global.mp_fol_last = global.mp_fol_mask;
     global.mp_fol_mask = 0;
+    global.mp_npcfol = global.mp_npcfol_cur;
+    global.mp_npcfol_cur = [];
     mp_ui_input();
     mp_test_input();
     // (Tests with "party": connect once the test setup has put us in our room.)
@@ -502,6 +516,7 @@ function mp_after_input()
     if (mp_join_input())
         mp_ui_block();
     mp_sync_input();
+    mp_dlg_input();
     mp_battle_input();
 }
 
@@ -546,6 +561,7 @@ function mp_end_tick()
         mp_log("hitch " + string(round(delta_time / 1000)) + " ms: room=" + room_get_name(room) + " interact=" + string(global.interact) + " sync=" + string(global.mp_sstate) + " battle=" + string(mp_in_battle_scene()) + " mic=" + string(global.mp_v_rec) + " players=" + string(mp_player_count()));
     if ((global.mp_frame mod 300) == 0)
         mp_filelog_flush();
+    mp_swap_fade_tick();
     mp_voice_tick();
     if (global.mp_role == 0)
         return;

@@ -32,6 +32,7 @@
 //   noenemysync     (test of the touched-enemy sync) don't share touched overworld enemies
 //   nomono          (test of the stale-plot guard) accept a lower plot from the others
 //   story           with battle: the encounter is treated as a story battle (calls everyone)
+//   bringat:<frame> host: bring everyone over at this frame
 //   battleclk:<ms>  with battle: wait for this moment of the shared clock (host's ms since start)
 
 function mp_test_has(tok)
@@ -111,6 +112,9 @@ function mp_test_tick()
             }
         }
     }
+    // bringat:<frame>: (host) bring everyone over.
+    if (mp_test_arg("bringat") != "" && global.mp_frame == real(mp_test_arg("bringat")))
+        mp_bring_everyone();
     // uishot:<page>: show a page of the menu for a screenshot.
     if (mp_test_arg("uishot") != "" && global.mp_frame == 300)
     {
