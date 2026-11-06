@@ -76,8 +76,16 @@ foreach ($ch in 1..9) {
     if (-not (Test-Path $src)) { continue }
     Write-Host "Patching Chapter $ch..."
     $log = Join-Path $dest "patch_chapter$ch.log"
-    & $patcher $src $out $mod "$ch" > $log 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    $code = 0
+    try {
+        & $patcher $src $out $mod "$ch" > $log 2>&1
+        $code = $LASTEXITCODE
+    } catch {
+        # Windows or an antivirus refused to start the patcher at all.
+        Copy-Item $src $out -Force
+        Fail "Windows or your antivirus wouldn't let the patcher start ($($_.Exception.Message.Split([char]10)[0].Trim())).`nAllow 'patcher\drm-patcher.exe' in your antivirus (or restore it from quarantine), then run Install.bat again."
+    }
+    if ($code -ne 0) {
         Write-Host "  Chapter $ch failed. Details: $log" -ForegroundColor Red
         Copy-Item $src $out -Force
         $failed++
