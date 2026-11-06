@@ -467,6 +467,12 @@ function mp_ghosts_clear()
         global.mp_pghost[i] = -4;
 }
 
+// Open-world battles: a friend in a fight stays where they were, so others can walk up and join.
+function mp_ghost_fighting(i)
+{
+    return global.mp_open && (global.mp_pstate[i] & 1) != 0;
+}
+
 // Creates / removes the ghost instances that show other players walking around.
 function mp_ghosts_update()
 {
@@ -475,7 +481,7 @@ function mp_ghosts_update()
     var board = mp_board_on();
     for (var i = 0; i < 8; i++)
     {
-        var want = showall && i != global.mp_myid && global.mp_pconn[i] && global.mp_proom[i] == room && (global.mp_pvis[i] || (global.mp_open && (global.mp_pstate[i] & 1))) && (global.mp_pstate[i] & 3) == 0 && sprite_exists(global.mp_pspr[i]);
+        var want = showall && i != global.mp_myid && global.mp_pconn[i] && global.mp_proom[i] == room && (global.mp_pvis[i] || mp_ghost_fighting(i)) && (global.mp_pstate[i] & 2) == 0 && ((global.mp_pstate[i] & 1) == 0 || mp_ghost_fighting(i)) && sprite_exists(global.mp_pspr[i]);
         // Board pieces only show on the board, and only on the board screen I'm looking at.
         if (want && (((global.mp_pstate[i] & 16) != 0) != board))
             want = false;

@@ -214,3 +214,7 @@ if (con == 1 && !mp_enc_gate())
 ;; A fight's own party: the intro shows who is really in it.
 @append gml_Object_obj_encounterbasic_Create_0
 mp_intro_markers();
+
+;; ...and the walk back to the party at the end shows the same heroes.
+@append gml_Object_obj_endbattle_Create_0
+mp_end_markers();

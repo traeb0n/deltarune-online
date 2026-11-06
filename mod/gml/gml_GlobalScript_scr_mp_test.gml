@@ -31,6 +31,8 @@
 //   staleplot:<a>:<b>  when the plot reaches a (outside battles), set it back to b once
 //   noenemysync     (test of the touched-enemy sync) don't share touched overworld enemies
 //   nomono          (test of the stale-plot guard) accept a lower plot from the others
+//   story           with battle: the encounter is treated as a story battle (calls everyone)
+//   battleclk:<ms>  with battle: wait for this moment of the shared clock (host's ms since start)
 
 function mp_test_has(tok)
 {
@@ -238,7 +240,9 @@ function mp_test_tick()
     if (mp_test_has("logvars") && (global.mp_test_timer == 200 || global.mp_test_timer == 700))
         show_debug_message("[MPVARS] t=" + string(global.mp_test_timer) + " flag500=" + string(global.flag[500]) + " xy=" + (instance_exists(obj_mainchara) ? string(obj_mainchara.x) + "," + string(obj_mainchara.y) : "-") + " enemies=" + string(instance_number(obj_chaseenemy)) + " gold=" + string(global.gold) + " plot=" + string(global.plot));
     var battle_delay = mp_test_arg("battleat") != "" ? real(mp_test_arg("battleat")) : 120;
-    if (mp_test_has("battle") && !global.mp_test_battled && instance_exists(obj_mainchara) && global.mp_test_timer > battle_delay && global.interact == 0 && (mp_on() || global.mp_role == 0))
+    // battleclk:<ms>: start the battle at this moment of the shared clock (two players at once)
+    var clk_ok = mp_test_arg("battleclk") == "" || (mp_on() && mp_clock_now() >= real(mp_test_arg("battleclk")));
+    if (mp_test_has("battle") && clk_ok && !global.mp_test_battled && instance_exists(obj_mainchara) && global.mp_test_timer > battle_delay && global.interact == 0 && (mp_on() || global.mp_role == 0))
     {
         var other_ready = true;
         if (global.mp_role == 1)

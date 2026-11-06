@@ -759,7 +759,7 @@ function mp_net_tick()
                 mp_wu16(clamp(global.mp_rtt, 0, 65535));
                 mp_send_unreliable_to(global.mp_hub);
             }
-            if ((current_time - global.mp_hub.lastrecv) > 30000)
+            if ((current_time - global.mp_hub.lastrecv) > 10000)
             {
                 mp_disconnect("Host stopped responding.");
                 return;
@@ -778,7 +778,7 @@ function mp_net_tick()
         {
             var p = ds_map_find_value(global.mp_peers, k);
             k = ds_map_find_next(global.mp_peers, k);
-            if ((current_time - p.lastrecv) > 30000 || ds_list_size(p.sendq) > 4000)
+            if ((current_time - p.lastrecv) > 10000 || ds_list_size(p.sendq) > 4000)
                 mp_host_drop(p, "timed out");
             else if (p.pid < 0 && (current_time - p.created) > 10000)
                 mp_peer_free(p);

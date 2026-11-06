@@ -748,6 +748,7 @@ function mp_draw_nametag(pid, cx, ty)
         return mp_draw_nametag_end(oldfont);
     if (global.mp_open && (global.mp_pstate[pid] & 1))
         s += " [FIGHTING]";
+    cx = mp_label_x(cx, string_width(s));
     draw_set_color(c_black);
     draw_text(cx + 1, ty + 1, s);
     draw_set_color(col);
@@ -756,6 +757,36 @@ function mp_draw_nametag(pid, cx, ty)
     draw_set_valign(fa_top);
     draw_set_font(oldfont);
     draw_set_color(c_white);
+}
+
+// Keeps a label of width w, centred on cx, inside the view (world coordinates).
+function mp_label_x(cx, w)
+{
+    var vx = camera_get_view_x(view_camera[0]);
+    var vw = camera_get_view_width(view_camera[0]);
+    return clamp(cx, vx + (w / 2) + 2, (vx + vw) - (w / 2) - 2);
+}
+
+// Above a friend's fight that I'm close enough to join (world coordinates).
+function mp_draw_join_prompt(cx, ty)
+{
+    var oldfont = draw_get_font();
+    if (global.mp_font >= 0)
+        draw_set_font(global.mp_font);
+    draw_set_halign(fa_center);
+    draw_set_valign(fa_bottom);
+    var s = "Press Z to join!";
+    var w = string_width(s) + 8;
+    var h = string_height(s) + 2;
+    cx = mp_label_x(cx, w);
+    draw_set_alpha(0.75);
+    draw_set_color(c_black);
+    draw_rectangle(cx - (w / 2), ty - h, cx + (w / 2), ty + 1, false);
+    draw_set_alpha(1);
+    var col = merge_color(c_yellow, c_white, 0.5 + (0.5 * sin(current_time / 180)));
+    draw_set_color(col);
+    draw_text(cx, ty, s);
+    mp_draw_nametag_end(oldfont);
 }
 
 function mp_draw_nametag_end(oldfont)

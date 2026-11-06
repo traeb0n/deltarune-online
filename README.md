@@ -57,7 +57,7 @@ keyboard or controller, and can walk to a different room from everyone else.
 
 The host picks one under F9 > Settings:
 
-* **Open-world battles** (default). Touch an enemy and you fight it with the players on your screen in that room. Everyone else keeps playing, and any number of fights can run at once. Walk up to a player in a fight and press Z to join at the next player turn. In a fight, only the heroes of its players take part, so a solo Susie or Ralsei fights alone, and may not be able to spare enemies. Story cutscenes and scripted bosses still bring in everyone. If your whole fight falls, only your fight sees Game Over: you come back at the room's entrance with some HP, and nothing is reloaded.
+* **Open-world battles** (default). Touch an enemy and you fight it with the players on your screen in that room. Everyone else keeps playing, and any number of fights can run at once. A player in a fight stays visible where they stood, glowing and tagged [FIGHTING]; walk up to them and press Z (the prompt appears above them) to join at the next player turn. In a fight, only the heroes of its players take part, so a solo Susie or Ralsei fights alone, and may not be able to spare enemies. Story cutscenes and scripted bosses still bring in everyone. If your whole fight falls, only your fight sees Game Over: you come back at the room's entrance with some HP, and nothing is reloaded. If the player who started a fight leaves or loses connection, the next player in it takes over within about 10 seconds. A player already in a fight of their own isn't waited for when a story battle starts; their hero is played by the story fight's leader. A fight keeps the rules it started with if the host changes this setting meanwhile.
 * **Everyone gets pulled in.** Every battle is every player's. A wipe sends everyone back to their last save.
 
 **Timing.** Every game keeps a clock shared with the host. Before an encounter's "!" and before each turn, hero action and bullet phase, each game in the fight stops and reports ready. The fight's leader then names a moment slightly ahead and everyone starts at that moment, so someone with a higher ping doesn't start later. Nobody waits forever: there are time limits. Measured on one PC: at most about 18 ms apart (a frame is 33 ms).
@@ -157,7 +157,7 @@ One UDP socket. Each datagram (≤1200 bytes) carries a cumulative ack plus a 32
 selective-ack field and any number of records. Reliable records are retransmitted with an
 RTT-based timeout and back-off, at most 4 datagrams per frame. Unreliable records (positions)
 replace older queued ones and are dropped if they arrive out of order. The host is the hub and
-forwards everything to the other players. Protocol version 6 (older versions can't join). Peers time out after 30 s of silence.
+forwards everything to the other players. Protocol version 6 (older versions can't join). Peers time out after 10 s of silence.
 
 ### Source layout
 

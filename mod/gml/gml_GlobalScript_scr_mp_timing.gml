@@ -431,8 +431,10 @@ function mp_enc_gate()
             // Call over whoever comes along: the battle scene itself only begins after the horn.
             if (global.mp_gid == 0)
             {
-                mp_gid_ensure(global.mp_open ? mp_nearby_mask() : 255, 0);
-                if (global.mp_open)
+                // (Test token "story": this encounter behaves like a story battle.)
+                var story = global.mp_test != "" && mp_test_has("story");
+                mp_gid_ensure((global.mp_open && !story) ? mp_nearby_mask() : 255, story);
+                if (global.mp_open && !story)
                     mp_party_set_local(mp_party_of(global.mp_b_mask));
             }
             if (!global.mp_battle_seen && (global.mp_sstate == 0 || global.mp_sstate == 1))
@@ -506,6 +508,16 @@ function mp_enc_send_ready(flag)
 
 function mp_enc_lead_ready(i, enc, flag)
 {
+    // Busy in a fight of their own: not part of this one (their hero, if in it, is mine to play).
+    if (flag == 3)
+    {
+        if (i != global.mp_myid && mp_in_mask(i))
+        {
+            global.mp_b_mask &= ~(1 << i);
+            mp_log("player " + string(i) + " is in another fight, not waiting for them");
+        }
+        return;
+    }
     if (!global.mp_enc_open)
     {
         if (flag == 2)

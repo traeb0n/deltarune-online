@@ -275,7 +275,8 @@ function mp_sync_recv(type, from, b)
         // Two of us started the same fight at the same moment: the lower id is the fight.
         if (kind == 1 && global.mp_gid != 0)
         {
-            if (pgid < global.mp_gid && (global.mp_enc_waiting || (global.mp_b_active && global.mp_tgo_sent < 0)))
+            var same_enc = enc == global.encounterno;
+            if (pgid < global.mp_gid && same_enc && (global.mp_enc_waiting || (global.mp_b_active && global.mp_tgo_sent < 0)))
             {
                 mp_log("same fight as " + string(from) + ": taking its id");
                 global.mp_gid = pgid;
@@ -285,6 +286,17 @@ function mp_sync_recv(type, from, b)
                     mp_enc_send_ready(1);
                 else
                     mp_send_tdone(0, 0);
+            }
+            else if (pgid != global.mp_gid && !(same_enc && pgid > global.mp_gid))
+            {
+                // Busy with a fight of my own (a story battle calls everyone): its leader needn't
+                // wait for me. (Not to someone who'll take my id in a moment, as above.)
+                mp_log("called to fight " + string(pgid) + " while in fight " + string(global.mp_gid) + ": busy");
+                mp_begin(50);
+                mp_wu16(pgid);
+                mp_ws16(enc);
+                mp_wu8(3);
+                mp_send();
             }
             return;
         }
@@ -636,6 +648,7 @@ function mp_sync_try_pull()
         global.mp_gid = p[11];
         global.mp_b_mask = p[12] | (1 << global.mp_myid);
         global.mp_b_story = p[13];
+        global.mp_b_open = global.mp_open;
         global.mp_b_leader = p[14];
         global.mp_tgo_sent = -1;
         if (local_party)

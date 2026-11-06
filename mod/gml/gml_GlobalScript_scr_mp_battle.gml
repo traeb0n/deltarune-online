@@ -606,7 +606,9 @@ function mp_battle_input()
         // The menu ignores presses for a few frames after the previous one. A press that
         // early would be ignored here but could land in time in the others' replay (which
         // can only be later), so hold it back until it is safely accepted everywhere.
-        if ((global.mp_frame - global.mp_mn_last) < 5)
+        // Likewise while the menu itself still ignores presses (its onebuffer/twobuffer countdowns,
+        // e.g. on the first frames of a turn): a press the menu drops here would count elsewhere.
+        if ((global.mp_frame - global.mp_mn_last) < 5 || !mp_menu_ready())
         {
             if (mask != 0)
             {
@@ -652,7 +654,7 @@ function mp_battle_input()
         var e = ds_list_find_value(global.mp_minq, k);
         if (e[0] == global.mp_bid && e[1] == global.mp_bturn && e[2] == global.mp_mn)
         {
-            if ((global.mp_frame - global.mp_mn_last) >= e[3])
+            if ((global.mp_frame - global.mp_mn_last) >= e[3] && mp_menu_ready())
             {
                 for (var j = 0; j < 10; j++)
                 {
@@ -668,6 +670,18 @@ function mp_battle_input()
             break;
         }
     }
+}
+
+// The battle menu takes a press this frame (it ignores them while its countdowns run).
+function mp_menu_ready()
+{
+    var ok = true;
+    with (obj_battlecontroller)
+    {
+        if (variable_instance_exists(id, "onebuffer") && (onebuffer >= 0 || twobuffer >= 0))
+            ok = false;
+    }
+    return ok;
 }
 
 function mp_battle_tick()

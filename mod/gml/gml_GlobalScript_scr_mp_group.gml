@@ -19,6 +19,7 @@ function mp_group_init()
     global.mp_b_leader = 0;
     global.mp_b_mask = 255;
     global.mp_b_story = 0;
+    global.mp_b_open = global.mp_open;
     global.mp_party_local = 0;
     global.mp_party_story = [0, 0, 0];
     global.mp_pull_mask = -1;
@@ -60,6 +61,7 @@ function mp_gid_ensure(mask, story)
     global.mp_b_leader = global.mp_myid;
     global.mp_b_mask = mask | (1 << global.mp_myid);
     global.mp_b_story = story;
+    global.mp_b_open = global.mp_open;
     mp_log("fight " + string(global.mp_gid) + " started, mask=" + string(global.mp_b_mask) + " story=" + string(story));
 }
 
@@ -77,9 +79,10 @@ function mp_begin_b(type)
     mp_wu16(global.mp_gid);
 }
 
+// (A fight keeps the rules it started with if the host changes the setting meanwhile.)
 function mp_open_fight()
 {
-    return global.mp_open && !global.mp_b_story;
+    return (global.mp_gid != 0 ? global.mp_b_open : global.mp_open) && !global.mp_b_story;
 }
 
 // ---------------------------------------------------------------- who is nearby
@@ -268,6 +271,54 @@ function mp_intro_markers()
             instance_destroy();
         count -= 1;
     }
+}
+
+// The battle's end, in obj_endbattle: the figures that walk back to the party. The game always sends
+// Kris from the first slot and a follower from every slot; a fight with its own party has other
+// heroes and empty slots. My hero walks back to my figure, the others to the followers.
+function mp_end_markers()
+{
+    if (!mp_on() || !mp_party_local_on() || !(global.specialbattle == 0 || global.specialbattle == 3) || !instance_exists(obj_mainchara))
+        return;
+    var mine = global.mp_pchar[global.mp_myid];
+    var order = [];
+    for (var a = 0; a < 3; a++)
+    {
+        if (global.char[a] != 0 && global.char[a] == mine)
+            array_push(order, a);
+    }
+    for (var b = 0; b < 3; b++)
+    {
+        if (global.char[b] != 0 && global.char[b] != mine)
+            array_push(order, b);
+    }
+    for (var i = 0; i <= count; i++)
+    {
+        var m = c[i];
+        if (!instance_exists(m))
+            continue;
+        var dest = i == 0 ? obj_mainchara : global.cinstance[i - 1];
+        if (i >= array_length(order) || !instance_exists(dest))
+        {
+            with (m)
+                instance_destroy();
+            continue;
+        }
+        var s = order[i];
+        var spr = mp_walk_sprite(global.char[s], "r");
+        if (spr >= 0)
+            m.sprite_index = spr;
+        m.x = global.heromakex[s];
+        m.y = global.heromakey[s];
+        if (instance_exists(global.charinstance[s]))
+        {
+            m.x = global.charinstance[s].x;
+            m.y = global.charinstance[s].y;
+        }
+        m.direction = point_direction(m.x, m.y, dest.x, dest.y);
+        m.speed = point_distance(m.x, m.y, dest.x, dest.y) / 10;
+    }
+    mp_log("end markers: " + string(array_length(order)) + " heroes, " + string(count + 1) + " markers");
 }
 
 function mp_party_local_on()
