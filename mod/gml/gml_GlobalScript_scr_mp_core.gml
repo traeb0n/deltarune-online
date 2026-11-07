@@ -5,7 +5,7 @@ function mp_init()
     if (variable_global_exists("mp_inited"))
         return;
     global.mp_inited = 1;
-    global.mp_version = 7;
+    global.mp_version = 8;
     global.mp_chapter = __CHAPTER__;
     global.mp_frame = 0;
     mp_filelog_init();
@@ -523,6 +523,9 @@ function mp_after_input()
 // obj_mp_controller Step.
 function mp_tick()
 {
+    // Cutscene catch-up speed never outlives following a cutscene (battles, menus, disconnects).
+    if (variable_global_exists("mp_dlg_fast") && global.mp_dlg_fast && (!mp_on() || global.mp_sstate != 2 || mp_in_battle_scene()))
+        mp_dlg_speed(false);
     if (global.mp_hold)
     {
         mp_net_tick();
