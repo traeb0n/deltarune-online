@@ -65,6 +65,7 @@ function mp_sync_init()
     global.mp_dlg_wait_f = 0;       // frames my finished box has been waiting
     global.mp_dlg_block_since = 0;
     global.mp_dlg_waitfor = "";
+    global.mp_dlg_giveup = false;   // waited out the 15 s once: stop waiting this cutscene
     global.mp_pdlg_key = array_create(8, -1);
     global.mp_pdlg_n = array_create(8, 0);
     global.mp_pdlg_t = array_create(8, -99999);
@@ -1244,7 +1245,8 @@ function mp_dlg_others()
 function mp_dlg_input()
 {
     global.mp_dlg_waitfor = "";
-    var inscene = global.mp_sstate == 1 || global.mp_sstate == 2;
+    // Battles keep their own pace (turn sync), so their text never waits on anyone here.
+    var inscene = (global.mp_sstate == 1 || global.mp_sstate == 2) && !mp_in_battle_scene();
     if (!inscene)
     {
         // Out of it: say so, so my count can't hold anyone up in their next cutscene.
@@ -1261,6 +1263,7 @@ function mp_dlg_input()
         global.mp_dlg_key = key;
         global.mp_dlg_n = 0;
         global.mp_dlg_sent = -1;
+        global.mp_dlg_giveup = false;
     }
     if ((global.mp_dlg_sent != global.mp_dlg_n) || (current_time - global.mp_dlg_sent_t) > 1000)
         mp_dlg_send();
@@ -1281,7 +1284,7 @@ function mp_dlg_input()
         auto = true;
     }
     // Ahead of someone: wait for them (up to 15 s).
-    if (z && o[1] >= 0 && global.mp_dlg_n > o[0])
+    if (z && o[1] >= 0 && global.mp_dlg_n > o[0] && !global.mp_dlg_giveup)
     {
         if (global.mp_dlg_block_since == 0)
             global.mp_dlg_block_since = current_time;
@@ -1294,6 +1297,7 @@ function mp_dlg_input()
             return;
         }
         mp_log("cutscene text: waited 15 s for " + o[2] + ", going on");
+        global.mp_dlg_giveup = true;    // they're not counting: don't hold me up again this cutscene
     }
     if (z)
     {
@@ -1304,7 +1308,7 @@ function mp_dlg_input()
         global.mp_dlg_block_since = 0;
         mp_dlg_send();
     }
-    else if (o[1] >= 0 && global.mp_dlg_n > o[0])
+    else if (o[1] >= 0 && global.mp_dlg_n > o[0] && !global.mp_dlg_giveup)
     {
         global.mp_dlg_waitfor = o[2];
     }
