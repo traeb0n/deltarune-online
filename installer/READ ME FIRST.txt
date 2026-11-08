@@ -3,13 +3,19 @@ DELTARUNE Online: play DELTARUNE together over the internet.
 You need your own copy of DELTARUNE. This download contains no game files.
 Everyone playing together needs the same version of this mod and of DELTARUNE.
 
-INSTALL
+INSTALL (only once)
 1. Unzip this whole folder somewhere.
 2. Double-click Install.bat. It copies your game to a separate folder and patches the copy
    (about 1 GB, a few minutes). Your Steam copy and normal saves are never changed.
-3. Start the game with "Play DELTARUNE Online.bat".
+3. Start the game with the "DELTARUNE Online" shortcut on your desktop or in the Start menu.
    If Windows SmartScreen warns about an unknown app, that's because this isn't signed:
    choose More info, then Run anyway, only if you trust the person who sent you this.
+4. You can delete the unzipped folder afterwards.
+
+UPDATES
+The shortcut checks for a new version of the mod every time you start it. If there is one,
+it downloads and installs it by itself (about 50 MB, then a minute of patching).
+It also re-patches by itself when Steam updates DELTARUNE.
 
 PLAY
 1. Everyone starts the game, picks the same chapter, and starts or loads a file.
@@ -23,7 +29,7 @@ This mod keeps its own save files in %LOCALAPPDATA%\DELTARUNE_ONLINE, so you sta
 To bring in your normal saves, copy the files from %LOCALAPPDATA%\DELTARUNE into that folder.
 
 UNINSTALL
-Run Uninstall.bat, then delete this folder.
+Run Uninstall.bat (it is also in %LOCALAPPDATA%\DeltaruneOnlinepp).
 
 LICENSE
 Free software under the GPL-3.0 (see LICENSE), based on DELTARUNE Multiplayer by AeEn123AI.

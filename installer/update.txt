@@ -1,0 +1,3 @@
+# Where the launcher looks for updates: a Google Drive folder shared as "Anyone with the link".
+# It installs the highest DeltaruneOnline-v<number>.zip it finds there.
+REPLACE_WITH_DRIVE_FOLDER_LINK
