@@ -364,14 +364,39 @@ namespace DeltaruneOnline
                 throw new Exception("the download is missing files");
             var old = Path.Combine(Root, "app.old");
             DeleteDir(old);
-            if (Directory.Exists(App)) Directory.Move(App, old);
-            try { Directory.Move(dir, App); }
+            if (Directory.Exists(App)) MoveDir(App, old);
+            try { MoveDir(dir, App); }
             catch
             {
-                if (Directory.Exists(old) && !Directory.Exists(App)) Directory.Move(old, App);
+                if (Directory.Exists(old) && !Directory.Exists(App)) MoveDir(old, App);
                 throw;
             }
             try { DeleteDir(old); } catch { }
+        }
+
+        // Directory.Move fails while an antivirus is still scanning new files inside (seen with Trend Micro).
+        // Wait a little; if it stays locked, copy instead (reading is allowed during a scan) and tidy up after.
+        void MoveDir(string src, string dst)
+        {
+            for (int attempt = 1; attempt <= 12; attempt++)
+            {
+                try { Directory.Move(src, dst); return; }
+                catch (IOException) { Thread.Sleep(500); }
+                catch (UnauthorizedAccessException) { Thread.Sleep(500); }
+            }
+            Log($"move {src} -> {dst} stayed locked: copying instead");
+            foreach (var f in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
+            {
+                var o = Path.Combine(dst, f.Substring(src.Length).TrimStart('\\'));
+                Directory.CreateDirectory(Path.GetDirectoryName(o));
+                for (int attempt = 1; ; attempt++)
+                {
+                    try { File.Copy(f, o, true); break; }
+                    catch (IOException) when (attempt < 20) { Thread.Sleep(500); }
+                    catch (UnauthorizedAccessException) when (attempt < 20) { Thread.Sleep(500); }
+                }
+            }
+            try { DeleteDir(src); } catch (Exception e) { Log("couldn't remove " + src + ": " + e.Message); }
         }
 
         // Downloads a release and installs it as app\.
