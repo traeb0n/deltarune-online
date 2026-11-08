@@ -1,4 +1,6 @@
-# DELTARUNE Multiplayer
+# DELTARUNE Online
+
+By traebon. Based on [DELTARUNE Multiplayer](https://github.com/AeEn123AI/deltarune-multiplayer) by AeEn123AI (GPL-3.0).
 
 > **Note: this project was written almost entirely by AI** (Claude, via Claude Code), directed and
 > tested by a human. Expect rough edges and bugs, and please don't treat the code as hand-audited.
@@ -74,7 +76,7 @@ Proximity voice: you hear players in the same room, quieter with distance. Push 
 
 You need DELTARUNE on Windows (the Steam version with `chapter1_windows` ... folders). Every player needs the mod, at the same version.
 
-Unzip `DeltaruneOnline-windows.zip` and run `Install.bat`. It copies your game to `%LOCALAPPDATA%\DeltaruneOnline\game` and patches the copy, so your Steam copy is never changed. Saves are kept in `%LOCALAPPDATA%\DELTARUNE_ONLINE`, apart from your normal ones. Start with `Play DELTARUNE Online.bat`. `Uninstall.bat` deletes the copy.
+Download `DELTARUNE Online.exe`, open it and click **INSTALL** (if SmartScreen warns, choose More info, then Run anyway: the exe isn't signed). It finds your Steam copy, copies it to `%LOCALAPPDATA%\DeltaruneOnline\game` and patches the copy, so your Steam copy is never changed. Saves are kept in `%LOCALAPPDATA%\DELTARUNE_ONLINE`, apart from your normal ones. Start the game from the **DELTARUNE Online** shortcut: every time it opens it installs any new version, and it patches again by itself after a Steam update. Uninstall is at the bottom of its window. The launcher's source is in `launcher/`.
 
 The older in-place `drm-patcher install` command still exists.
 
@@ -160,7 +162,7 @@ One UDP socket. Each datagram (≤1200 bytes) carries a cumulative ack plus a 32
 selective-ack field and any number of records. Reliable records are retransmitted with an
 RTT-based timeout and back-off, at most 4 datagrams per frame. Unreliable records (positions)
 replace older queued ones and are dropped if they arrive out of order. The host is the hub and
-forwards everything to the other players. Protocol version 7 (older versions can't join). Peers time out after 10 s of silence.
+forwards everything to the other players. Protocol version 9 (older versions can't join). Peers time out after 10 s of silence.
 
 ### Source layout
 
