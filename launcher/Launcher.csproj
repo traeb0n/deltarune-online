@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- DELTARUNE Online launcher: installs, updates and starts the mod.
+       .NET Framework 4.8 ships with Windows 10 and 11, so the exe stays small and needs nothing installed. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>DELTARUNE Online</AssemblyName>
+    <RootNamespace>DeltaruneOnline</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Product>DELTARUNE Online</Product>
+    <Description>DELTARUNE Online launcher</Description>
+    <Copyright>GPL-3.0. Unofficial fan project; DELTARUNE is by Toby Fox.</Copyright>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The shared update folder link, baked in so a fresh download knows where to look. -->
+    <EmbeddedResource Include="..\installer\update.txt" LogicalName="update.txt" />
+  </ItemGroup>
+</Project>

@@ -1,24 +1,20 @@
 DELTARUNE Online: play DELTARUNE together over the internet.
 
-You need your own copy of DELTARUNE. This download contains no game files.
-Everyone playing together needs the same version of this mod and of DELTARUNE.
+You need your own copy of DELTARUNE on Steam. This download contains no game files.
 
-INSTALL (only once)
-1. Unzip this whole folder somewhere.
-2. Double-click Install.bat. It copies your game to a separate folder and patches the copy
-   (about 1 GB, a few minutes). Your Steam copy and normal saves are never changed.
-3. Start the game with the "DELTARUNE Online" shortcut on your desktop or in the Start menu.
-   If Windows SmartScreen warns about an unknown app, that's because this isn't signed:
-   choose More info, then Run anyway, only if you trust the person who sent you this.
-4. You can delete the unzipped folder afterwards.
+INSTALL
+Double-click "DELTARUNE Online.exe" and press INSTALL. It copies your game to a separate
+folder and patches the copy (about 1 GB, a few minutes). Your Steam copy and normal saves
+are never changed. Afterwards, start it from the "DELTARUNE Online" shortcut on your desktop.
+If Windows SmartScreen warns about an unknown app, that's because this isn't signed:
+choose More info, then Run anyway, only if you trust the person who sent you this.
 
 UPDATES
-The shortcut checks for a new version of the mod every time you start it. If there is one,
-it downloads and installs it by itself (about 50 MB, then a minute of patching).
-It also re-patches by itself when Steam updates DELTARUNE.
+Every time you open DELTARUNE Online it checks for a new version and installs it by itself.
+It also patches the game again by itself when Steam updates DELTARUNE.
 
 PLAY
-1. Everyone starts the game, picks the same chapter, and starts or loads a file.
+1. Everyone opens DELTARUNE Online, picks the same chapter, and starts or loads a file.
 2. Press F9 in game. Controls & info and Settings are in that menu.
 3. The host chooses "Host a game". The host needs UDP port 26510 open on their router
    (or use a program like Hamachi, which needs no router change).
@@ -29,9 +25,9 @@ This mod keeps its own save files in %LOCALAPPDATA%\DELTARUNE_ONLINE, so you sta
 To bring in your normal saves, copy the files from %LOCALAPPDATA%\DELTARUNE into that folder.
 
 UNINSTALL
-Run Uninstall.bat (it is also in %LOCALAPPDATA%\DeltaruneOnlinepp).
+Open DELTARUNE Online and click Uninstall at the bottom. Your mod saves are kept.
 
 LICENSE
 Free software under the GPL-3.0 (see LICENSE), based on DELTARUNE Multiplayer by AeEn123AI.
-The source code is included in the "mod" and "patcher-src" folders.
+The source code is in the "mod", "patcher-src" and "launcher-src" folders.
 DELTARUNE is made by Toby Fox. This is an unofficial fan project.
