@@ -852,6 +852,8 @@ function mp_sync_tick()
     switch (global.mp_sstate)
     {
         case 0:
+            if (mp_mirror_after_check(ia))
+                break;
             if (mp_story_rise(ia, battle))
                 global.mp_classify = 1;
             else if (global.mp_prev_interact == 0 && ia != 0)

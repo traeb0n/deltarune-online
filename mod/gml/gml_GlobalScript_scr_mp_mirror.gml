@@ -26,6 +26,8 @@ function mp_mirror_init()
     global.mp_mir_choice = -1;
     global.mp_mir_choice_t = 0;
     global.mp_mir_frozen_room = -1;
+    global.mp_mir_after_room = -1;              // where a mirrored scene just ended...
+    global.mp_mir_after_until = 0;              // ...and until when its own copy mustn't start there
     mp_mirror_info_init();
     // Text boxes are opened by the followers themselves; the mod's own objects are never sent.
     var never = ["obj_writer", "obj_dialoguer", "obj_face", "obj_smallface", "obj_choicer_neo", "obj_mp_controller", "obj_mp_ghost", "obj_mp_mirror"];
@@ -167,7 +169,9 @@ function mp_mirror_send_dialogue(w, sd)
         buffer_write(global.mp_msg, buffer_string, string_copy(s, 1, 1000));
         mp_send();
         lines += 1;
-        if (string_length(s) > 0 && string_char_at(s, string_length(s)) == "%")
+        // "/%" (wait, then close) or "%%" (close) ends the box; a lone "%" goes straight on to the
+        // next page (a face change between two speakers is a page of its own like that).
+        if (string_pos("/%", s) > 0 || string_pos("%%", s) > 0)
             break;
     }
     mp_begin(78);
@@ -306,13 +310,18 @@ function mp_mirror_end(rm, ex, ey, edz, from)
     with (obj_dialoguer)
         instance_destroy();
     global.interact = 0;
+    global.mp_prev_interact = 0;
     global.mp_sstate = 0;
     global.mp_slead = -1;
     global.mp_watch_text = "";
     mp_mirror_reset();
     mp_vars_apply_queue();
-    // My room was switched off: it's built again (with the story as the scene left it).
+    // My room was switched off: it's built again (with the story as the scene left it). If its own
+    // copy of the scene starts anyway (the scene's "done" mark is something we don't share, or the
+    // story is further on here), it's stopped: mp_mirror_after_check.
     global.mp_warp_reenter = 1;
+    global.mp_mir_after_room = rm >= 0 ? rm : room;
+    global.mp_mir_after_until = current_time + 8000;
     if (rm >= 0 && mp_room_ok(rm) && !mp_credits_running())
     {
         if (mp_dz_take(edz))
@@ -462,6 +471,38 @@ function mp_mirror_choice_step()
         global.mp_mir_choice = -1;
         event_user(0);
     }
+}
+
+// mp_sync_tick (free roam): true when the scene that was just mirrored started again here by itself,
+// which is then stopped.
+function mp_mirror_after_check(ia)
+{
+    if (global.mp_mir_after_room != room || current_time > global.mp_mir_after_until)
+        return false;
+    if (global.mp_warp_pending || global.mp_warp_delay > 0 || (global.mp_frame - global.mp_lastz) <= 3)
+        return false;
+    // (Not "interact went up": the room's scene takes over on its first frame, while interact is
+    // still up from mirroring, so it never visibly rises.)
+    if (!mp_cutscene_running() && ia != 1)
+        return false;
+    mp_log("mirror: the scene started again here after it ended: stopped");
+    global.mp_mir_after_until = 0;
+    mp_kill_scenes();
+    mp_close_local_dialogue();
+    // ...with the characters and props it had already put out, and the party it had hidden.
+    var ac = asset_get_index("obj_actor");
+    if (ac >= 0)
+    {
+        with (ac)
+            instance_destroy();
+    }
+    with (obj_mainchara)
+        visible = 1;
+    with (obj_caterpillarchara)
+        visible = 1;
+    global.interact = 0;
+    global.mp_classify = 0;
+    return true;
 }
 
 // ---------------------------------------------------------------- obj_mp_mirror
