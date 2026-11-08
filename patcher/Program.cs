@@ -151,6 +151,18 @@ static class Program
             data.GeneralInfo.FileName = data.Strings.MakeString(saveName);
         }
 
+        // Cutscene mirror: what each object draws (see MirrorInfo.cs). Worked out before the compiler is
+        // set up: decompiling this much first leaves its function table unable to find the mod's functions.
+        int mirrorCount = 0;
+        string mirror;
+        {
+            var gctx = new UndertaleModLib.Decompiler.GlobalDecompileContext(data);
+            mirror = MirrorInfo.Generate(data, c => new Underanalyzer.Decompiler.DecompileContext(gctx, c, data.ToolInfo.DecompilerSettings).DecompileToString(), out mirrorCount);
+        }
+        string mirrorDump = Environment.GetEnvironmentVariable("DRM_MIRROR_DUMP");
+        if (!string.IsNullOrEmpty(mirrorDump))
+            File.WriteAllText(mirrorDump, mirror);
+
         var group = new CodeImportGroup(data) { ThrowOnNoOpFindReplace = true };
         int count = 0;
 
@@ -171,6 +183,11 @@ static class Program
                 group.QueueReplace(Path.GetFileNameWithoutExtension(file), Preprocess(File.ReadAllText(file), chapter));
                 count++;
             }
+
+        // 1b. Cutscene mirror code (generated above).
+        group.QueueReplace("gml_GlobalScript_scr_mp_mirrorinfo", mirror);
+        count++;
+        Console.WriteLine($"  mirror info: {mirrorCount} objects with their own Draw event");
 
         // 2. Hooks into existing code.
         var hooks = new List<Hook>();

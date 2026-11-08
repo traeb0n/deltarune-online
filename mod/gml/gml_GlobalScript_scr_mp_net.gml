@@ -246,7 +246,7 @@ function mp_rval(b)
 
 function mp_type_unreliable(type)
 {
-    return type == 10 || type == 37 || type == 38 || type == 47; // positions, music clock, pings, SOUL positions
+    return type == 10 || type == 37 || type == 38 || type == 47 || (type >= 70 && type <= 75); // positions, music clock, pings, SOUL positions, mirrored cutscene
 }
 
 // Finishes the current message and sends it to everyone (host: all clients; client: the hub).

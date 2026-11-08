@@ -1,3 +1,4 @@
 ;; <object> persistent=0/1 visible=0/1 depth=<n>
 obj_mp_controller persistent=1 visible=1 depth=-99999
 obj_mp_ghost persistent=0 visible=1 depth=0
+obj_mp_mirror persistent=1 visible=1 depth=-9000

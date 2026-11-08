@@ -5,7 +5,7 @@ function mp_init()
     if (variable_global_exists("mp_inited"))
         return;
     global.mp_inited = 1;
-    global.mp_version = 8;
+    global.mp_version = 9;
     global.mp_chapter = __CHAPTER__;
     global.mp_frame = 0;
     mp_filelog_init();
@@ -34,6 +34,7 @@ function mp_init()
     mp_config_load();
     mp_world_init();
     mp_sync_init();
+    mp_mirror_init();
     mp_voice_init();
     mp_group_init();
     mp_timing_init();
@@ -438,6 +439,11 @@ function mp_handle(type, sender, b, sock, endpos)
     if (type >= 30 && type < 40)
     {
         mp_sync_recv(type, sender, b);
+        return;
+    }
+    if (type >= 70 && type < 80) // cutscene mirror
+    {
+        mp_mirror_recv(type, sender, b);
         return;
     }
     if (type == 61) // the host brings everyone over

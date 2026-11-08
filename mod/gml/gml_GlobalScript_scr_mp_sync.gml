@@ -127,7 +127,7 @@ function mp_in_battle_scene()
 // Called from mp_after_input: spectators must not move.
 function mp_sync_input()
 {
-    if (global.mp_sstate == 4 || global.mp_sstate == 3 || (global.mp_sstate == 2 && instance_exists(obj_choicer_neo)))
+    if (global.mp_sstate == 5 || global.mp_sstate == 4 || global.mp_sstate == 3 || (global.mp_sstate == 2 && instance_exists(obj_choicer_neo)))
     {
         for (var i = 0; i < 10; i++)
         {
@@ -254,6 +254,9 @@ function mp_sync_recv(type, from, b)
     if (type == 34) // the song the sender is playing
     {
         global.mp_pmus[from] = buffer_read(b, buffer_string);
+        // Mirroring their cutscene: their music.
+        if (global.mp_sstate == 5 && from == global.mp_slead && global.mp_pmus[from] != "")
+            mp_music_follow(from);
         return;
     }
     if (type == 37) // the music clock of the host or of my fight's leader
@@ -334,6 +337,11 @@ function mp_sync_recv(type, from, b)
         var edz = buffer_read(b, buffer_u8);
         if (from != global.mp_slead)
             return;
+        if (global.mp_sstate == 5)
+        {
+            mp_mirror_end(rm2, ex, ey, edz, from);
+            return;
+        }
         global.mp_watch_text = "";
         if (global.mp_sstate == 3 || global.mp_sstate == 4)
         {
@@ -368,7 +376,11 @@ function mp_sync_recv(type, from, b)
         var seq = buffer_read(b, buffer_u16);
         var val = buffer_read(b, buffer_s8);
         if (from == global.mp_slead)
+        {
             ds_map_set(global.mp_choices, seq, val);
+            global.mp_mir_choice = val;
+            global.mp_mir_choice_t = current_time;
+        }
         return;
     }
 }
@@ -617,10 +629,10 @@ function mp_sync_try_pull()
     var busy = global.interact != 0 && global.mp_sstate == 0;
     if (kind == 2 && busy && global.mp_classify > 0 && room == p[2])
     {
-        // The same cutscene just started in my game too: play along instead of being moved.
+        // The same cutscene just started in my game too: watch theirs instead (mine is switched off).
         global.mp_pull = -1;
         global.mp_classify = 0;
-        mp_sync_follow(from);
+        mp_mirror_start(from, p[2]);
         return;
     }
     if (kind == 2 && busy && mp_cutscene_running())
@@ -660,6 +672,9 @@ function mp_sync_try_pull()
         if (!local_party)
             mp_var_apply(vc, i, pp[i]);
     }
+    var was_mirror = global.mp_sstate == 5;
+    if (was_mirror)
+        mp_mirror_reset();
     if (kind == 1)
     {
         global.mp_gid = p[11];
@@ -678,7 +693,8 @@ function mp_sync_try_pull()
         global.mp_battle_pulled = 1;
         mp_notify("Joining " + global.mp_pname[from] + "'s battle!");
         global.mp_warp_mus = from;
-        global.mp_warp_reenter = dz_changed;
+        // (A room switched off for a mirrored cutscene is built again.)
+        global.mp_warp_reenter = dz_changed || was_mirror;
         mp_warp(p[2], p[3], p[4], 1);
     }
     else
@@ -686,18 +702,8 @@ function mp_sync_try_pull()
         // Their story progress from before the cutscene (never moving ours backwards).
         if (p[6] > global.plot)
             global.plot = p[6];
-        global.mp_sstate = 3;
-        global.mp_wait = -1;
-        global.mp_lead_done = 0;
-        global.mp_choice_seq = 0;
-        global.mp_watch_text = "";
-        ds_map_clear(global.mp_choices);
-        mp_notify("Joining " + global.mp_pname[from] + " for a cutscene...");
-        // Cutscenes that start on entering a room need us to enter it too (and so does a
-        // changed party: followers are only created when entering a room).
-        global.mp_warp_reenter = p[8] || party_changed || dz_changed;
-        global.mp_warp_mus = from;
-        mp_warp(p[2], p[3], p[4], 2);
+        // Their cutscene plays only in their game; mine shows it (scr_mp_mirror).
+        mp_mirror_start(from, p[2]);
     }
 }
 
@@ -934,6 +940,9 @@ function mp_sync_tick()
                 global.interact = 0;
             }
             break;
+        case 5:
+            mp_mirror_follow_tick();
+            break;
         case 4:
             global.interact = 1;
             if (!global.mp_pconn[global.mp_slead])
@@ -1157,7 +1166,7 @@ function mp_status_line()
         return "Watching " + global.mp_pname[global.mp_slead] + "'s cutscene...";
     if (global.mp_sstate == 3)
         return "Joining " + global.mp_pname[global.mp_slead] + "...";
-    if (global.mp_sstate == 2 && instance_exists(obj_choicer_neo))
+    if ((global.mp_sstate == 2 || global.mp_sstate == 5) && instance_exists(obj_choicer_neo))
         return global.mp_pname[global.mp_slead] + " is choosing...";
     return "";
 }
@@ -1165,7 +1174,14 @@ function mp_status_line()
 // Prepended to obj_choicer_neo's Step: followers take the leader's answer.
 function mp_choice_step()
 {
-    if (!variable_global_exists("mp_inited") || !mp_on() || global.mp_sstate != 2)
+    if (!variable_global_exists("mp_inited") || !mp_on())
+        return;
+    if (global.mp_sstate == 5)
+    {
+        mp_mirror_choice_step();
+        return;
+    }
+    if (global.mp_sstate != 2)
         return;
     if (canchoose == 1 && choiced == 0)
     {
@@ -1265,7 +1281,7 @@ function mp_dlg_input()
 {
     global.mp_dlg_waitfor = "";
     // Battles keep their own pace (turn sync), so their text never waits on anyone here.
-    var inscene = (global.mp_sstate == 1 || global.mp_sstate == 2) && !mp_in_battle_scene();
+    var inscene = (global.mp_sstate == 1 || global.mp_sstate == 2 || global.mp_sstate == 5) && !mp_in_battle_scene();
     if (!inscene)
     {
         mp_dlg_speed(false);
@@ -1306,7 +1322,7 @@ function mp_dlg_input()
         ln = -1;
     // Behind the leader (a slower PC, a late start, the window in the background): the walking
     // and animation between boxes run at double speed until I'm on their box again.
-    mp_dlg_speed(ln > global.mp_dlg_n + 1 || (ln > global.mp_dlg_n && !global.mp_dlg_ready && !instance_exists(obj_writer)));
+    mp_dlg_speed(global.mp_sstate == 2 && (ln > global.mp_dlg_n + 1 || (ln > global.mp_dlg_n && !global.mp_dlg_ready && !instance_exists(obj_writer))));
     if (!global.mp_dlg_ready)
     {
         // The leader is already two boxes on (I started late): skip typing this one, the way X does.
@@ -1346,7 +1362,14 @@ function mp_dlg_input()
         return;
     }
     // Leader: wait until my box has finished typing on everyone's screen.
-    var slow = global.mp_dlg_giveup ? "" : mp_dlg_not_ready();
+    // (Text that isn't in a text box - speech bubbles drawn by the scene - isn't mirrored: no wait.)
+    var boxed = false;
+    with (obj_writer)
+    {
+        if (dialoguer == 1)
+            boxed = true;
+    }
+    var slow = (global.mp_dlg_giveup || !boxed) ? "" : mp_dlg_not_ready();
     var behind = slow != "";
     if (behind)
     {

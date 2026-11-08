@@ -218,3 +218,24 @@ mp_intro_markers();
 ;; ...and the walk back to the party at the end shows the same heroes.
 @append gml_Object_obj_endbattle_Create_0
 mp_end_markers();
+
+;; Cutscene mirror (scr_mp_mirror): the leader's text boxes open in the followers' games...
+@append gml_Object_obj_dialoguer_Other_10
+mp_mirror_dialoguer_made();
+
+;; ...and the sounds of the leader's scene play there too.
+#chapters 1,2
+@regex gml_GlobalScript_snd_play
+(function snd_play\(arg0\)\s*\{)
+@with
+$1
+    mp_mirror_snd(arg0, 1, 1);
+@end
+#chapters 3,4,5
+@regex gml_GlobalScript_snd_play
+(function snd_play\(arg0, arg1 = 1, arg2 = 1\)\s*\{)
+@with
+$1
+    mp_mirror_snd(arg0, arg1, arg2);
+@end
+#chapters all

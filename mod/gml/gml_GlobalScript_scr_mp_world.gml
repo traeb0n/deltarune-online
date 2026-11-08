@@ -875,6 +875,9 @@ function mp_room_start()
     }
     if (string_pos("room_gameover", room_get_name(room)) == 1)
         global.mp_gameover = 1;
+    // Mirroring a cutscene: this room's own objects must not run (its copy of the scene).
+    if (global.mp_sstate == 5)
+        mp_mirror_freeze();
     if (global.mp_warp_pending)
     {
         if (room == global.mp_warp_room)
