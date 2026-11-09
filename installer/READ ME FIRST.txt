@@ -22,6 +22,11 @@ PLAY
    or Tailscale), joins the same network, and uses the host's address from that program.
 4. Everyone else sets "Host address" to the host's address, then chooses "Join game".
 
+HELP AND BUG REPORTS
+Join the Discord: https://discord.gg/GRX6XbTYRG
+For a bug, say which chapter and what happened, and attach multiplayer_log.txt
+from %LOCALAPPDATA%\DELTARUNE_ONLINE.
+
 SAVES
 This mod keeps its own save files in %LOCALAPPDATA%\DELTARUNE_ONLINE, so you start fresh.
 To bring in your normal saves, copy the files from %LOCALAPPDATA%\DELTARUNE into that folder.

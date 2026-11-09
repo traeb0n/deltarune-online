@@ -8,6 +8,8 @@ Paste the parts below into the site's fields. Screenshots are in `docs/screensho
 
 DELTARUNE Online: Co-op Multiplayer (Beta)
 
+Version: 1.0 (beta)
+
 ## Short description (one line)
 
 Play all of DELTARUNE together online: each friend controls a party member, dodges with their own SOUL, and talks over proximity voice chat.
@@ -75,7 +77,9 @@ Saves are kept separately in `%LOCALAPPDATA%\DELTARUNE_ONLINE`. To use your norm
 - Platforming sections show everyone as Kris.
 - If the host leaves, the session ends.
 
-**Reporting a bug:** describe what happened and attach `multiplayer_log.txt` from `%LOCALAPPDATA%\DELTARUNE_ONLINE`.
+**Discord:** https://discord.gg/GRX6XbTYRG for help, bug reports and finding people to play with.
+
+**Reporting a bug:** post in the Discord (or the comments) what happened and attach `multiplayer_log.txt` from `%LOCALAPPDATA%\DELTARUNE_ONLINE`.
 
 ## Credits
 

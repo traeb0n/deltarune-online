@@ -19,7 +19,17 @@ namespace DeltaruneOnline
     class Release
     {
         public string Name;
-        public int Version;
+        public int Version;   // build number, only ever goes up
+        // What players see: "1.0" from DeltaruneOnline-1.0.zip, or the build number for DeltaruneOnline-v12.zip.
+        public string Label
+        {
+            get
+            {
+                var m = Regex.Match(Name ?? "", @"^DeltaruneOnline-(.+)\.zip$", RegexOptions.IgnoreCase);
+                if (!m.Success || Regex.IsMatch(m.Groups[1].Value, @"^v\d+$", RegexOptions.IgnoreCase)) return Version.ToString();
+                return m.Groups[1].Value;
+            }
+        }
         public string Url;    // a direct download (GitHub release)
         public string Id;     // or a Google Drive file id
         public string Path;   // or a local file (testing)
@@ -105,6 +115,23 @@ namespace DeltaruneOnline
         }
 
         public int AppVersion => ReadVersion(App);
+
+        // The version players see (version_name.txt in the package, e.g. "1.0"); the build number if there's none.
+        public string AppVersionName
+        {
+            get
+            {
+                try
+                {
+                    var n = File.ReadAllText(Path.Combine(App, "version_name.txt")).Trim();
+                    if (n != "") return n;
+                }
+                catch { }
+                return AppVersion.ToString();
+            }
+        }
+
+        public const string DiscordUrl = "https://discord.gg/GRX6XbTYRG";
         public bool IsInstalled => AppVersion > 0 && File.Exists(Path.Combine(App, "patcher", "drm-patcher.exe"));
         public bool CanPlay => File.Exists(Path.Combine(Game, "DELTARUNE.exe")) && Get("patched") != "";
 
@@ -288,10 +315,17 @@ namespace DeltaruneOnline
                 // so there is no hourly request limit.
                 var repo = Regex.Replace(gh.Groups[2].Value, @"\.git$", "");
                 var basis = $"https://github.com/{gh.Groups[1].Value}/{repo}/releases/latest/download/";
-                var name = GetText(basis + "latest.txt").Split('\n')[0].Trim();
-                var m = NameRx.Match(name);
-                if (!m.Success) throw new Exception("GitHub's latest release doesn't name a DeltaruneOnline zip");
-                list.Add(new Release { Name = name, Version = int.Parse(m.Groups[1].Value), Url = basis + name });
+                // latest.txt: "<zip name> <build number>", e.g. "DeltaruneOnline-1.0.zip 12".
+                // (Older releases had only "DeltaruneOnline-v<build>.zip".)
+                var parts = GetText(basis + "latest.txt").Split('\n')[0].Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 0 || !parts[0].StartsWith("DeltaruneOnline-", StringComparison.OrdinalIgnoreCase) || !parts[0].EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                    throw new Exception("GitHub's latest release doesn't name a DeltaruneOnline zip");
+                int build;
+                var m = NameRx.Match(parts[0]);
+                if (parts.Length > 1 && int.TryParse(parts[1], out build)) { }
+                else if (m.Success) build = int.Parse(m.Groups[1].Value);
+                else throw new Exception("GitHub's latest release has no build number");
+                list.Add(new Release { Name = parts[0], Version = build, Url = basis + parts[0] });
                 return list;
             }
             var id = Regex.Match(feed, @"(?:folders/|[?&]id=)([\w-]{10,})");
@@ -479,8 +513,8 @@ namespace DeltaruneOnline
             var staging = Path.Combine(Root, "staging");
             try
             {
-                Download(rel, zip, $"Downloading version {rel.Version}...");
-                Report($"Unpacking version {rel.Version}...", "", -1);
+                Download(rel, zip, $"Downloading version {rel.Label}...");
+                Report($"Unpacking version {rel.Label}...", "", -1);
                 DeleteDir(staging);
                 Extract(zip, staging);
                 var ver = Directory.GetFiles(staging, "version.txt", SearchOption.AllDirectories).OrderBy(f => f.Length).FirstOrDefault();

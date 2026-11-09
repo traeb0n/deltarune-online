@@ -12,6 +12,8 @@ By traebon. Based on [DELTARUNE Multiplayer](https://github.com/AeEn123AI/deltar
 Open it and click **INSTALL**. It updates itself from then on. See [Installing](#installing) and [Playing](#playing).
 All versions are on the [Releases page](https://github.com/traeb0n/deltarune-online/releases).
 
+**Discord:** [discord.gg/GRX6XbTYRG](https://discord.gg/GRX6XbTYRG): help, bug reports and people to play with.
+
 ## Screenshots
 
 ![Three players dodging in a Chapter 5 battle, each with their own SOUL](docs/screenshots/01_ch5_three_player_battle.png)

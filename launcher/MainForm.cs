@@ -168,7 +168,7 @@ namespace DeltaruneOnline
 
         void Repatch()
         {
-            Run(() => { core.ForgetPatch(); core.PatchGame(); return $"Patched again. Mod version {core.AppVersion}."; }, false);
+            Run(() => { core.ForgetPatch(); core.PatchGame(); return $"Patched again. Mod version {core.AppVersionName}."; }, false);
         }
 
         void Uninstall()
@@ -322,14 +322,14 @@ namespace DeltaruneOnline
                     if (core.FailedChapters > 0) d += $" {core.FailedChapters} chapter(s) couldn't be patched and play without multiplayer.";
                     Detail(g, d + "\nIn game, press F9 for the multiplayer menu.");
                     MainButton(g, "PLAY", Play);
-                    Footer(g, $"Mod version {core.AppVersion}");
+                    Footer(g, $"Mod version {core.AppVersionName}");
                     break;
                 case Screen.Error:
                     Status(g, "Something went wrong.", Red);
                     Detail(g, error);
                     MainButton(g, "TRY AGAIN", () => retry?.Invoke());
                     if (core.CanPlay) Link(g, "playanyway", "Play the version you have", W / 2f, 352, Play, true);
-                    Footer(g, core.IsInstalled ? $"Mod version {core.AppVersion}" : "");
+                    Footer(g, core.IsInstalled ? $"Mod version {core.AppVersionName}" : "");
                     break;
                 case Screen.Starting:
                     Status(g, "Have fun!", Color.White);
@@ -416,7 +416,8 @@ namespace DeltaruneOnline
                 ("uninstall", "Uninstall", Uninstall),
                 ("repatch", "Re-patch", Repatch),
                 ("folder", "Open folder", () => Process.Start("explorer.exe", "\"" + core.Root + "\"")),
-                ("check", "Check for updates", () => StartUpdate(true)) })
+                ("check", "Check for updates", () => StartUpdate(true)),
+                ("discord", "Discord", () => { try { Process.Start(Core.DiscordUrl); } catch { } }) })
             {
                 x -= g.MeasureString(text, fSmall).Width + 8;
                 Link(g, id, text, x, H - 30, act, false);
@@ -452,7 +453,7 @@ namespace DeltaruneOnline
             Shot("nogame", Screen.NoGame);
             Shot("busy_copy", Screen.Busy, () => core.Report("Copying the game...", "412 of 1034 MB  (your Steam copy is left alone)", 0.4));
             Shot("busy_check", Screen.Busy, () => core.Report("Checking for updates...", "", -1));
-            Shot("ready", Screen.Ready, () => f.note = "Updated to version 11.");
+            Shot("ready", Screen.Ready, () => f.note = "Updated to version 1.0.");
             Shot("error", Screen.Error, () => f.error = "Couldn't download the mod: The remote name could not be resolved: 'github.com'. Check your internet connection.");
             Shot("starting", Screen.Starting);
         }

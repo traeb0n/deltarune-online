@@ -23,7 +23,7 @@ namespace DeltaruneOnline
             core.PlaceLauncher();
             core.CreateShortcuts();
             core.PatchGame();
-            return $"Installed version {core.AppVersion}. There's a DELTARUNE Online shortcut on your desktop now.";
+            return $"Installed version {core.AppVersionName}. There's a DELTARUNE Online shortcut on your desktop now.";
         }
 
         // Every start: install a newer version if there is one, then re-patch if the mod or the game changed.
@@ -38,21 +38,21 @@ namespace DeltaruneOnline
                 try
                 {
                     var newest = core.Newest();
-                    if (newest == null || newest.Version <= core.AppVersion) note = $"Mod version {core.AppVersion}, up to date.";
-                    else if (core.GameRunning()) note = $"Version {newest.Version} is out. Close the game and open this again to update.";
+                    if (newest == null || newest.Version <= core.AppVersion) note = $"Mod version {core.AppVersionName}, up to date.";
+                    else if (core.GameRunning()) note = $"Version {newest.Label} is out. Close the game and open this again to update.";
                     else
                     {
                         core.InstallRelease(newest);
-                        note = $"Updated to version {core.AppVersion}.";
+                        note = $"Updated to version {core.AppVersionName}.";
                     }
                 }
                 catch (Exception e)
                 {
                     core.Log("update check: " + e.Message);
-                    note = $"Couldn't check for updates ({Short(e.Message)}). Mod version {core.AppVersion}.";
+                    note = $"Couldn't check for updates ({Short(e.Message)}). Mod version {core.AppVersionName}.";
                 }
             }
-            else note = $"Updated to version {core.AppVersion}.";
+            else note = $"Updated to version {core.AppVersionName}.";
             try { restart = core.PlaceLauncher(); }
             catch (Exception e) { core.Log("launcher update: " + e.Message); }
             if (restart) return note;
