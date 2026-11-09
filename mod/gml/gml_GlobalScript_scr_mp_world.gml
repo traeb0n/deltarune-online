@@ -536,27 +536,63 @@ function mp_recv_pos(pid, b)
         if (instance_exists(g))
             g.snap = 1;
     }
-    // A freshly joined client starts next to the host.
-    if (pid == 0 && global.mp_need_warp && global.mp_pvis[0])
+    // (A freshly joined client goes to the host: mp_join_warp_tick, every frame until it's done.)
+}
+
+// A client that just joined (or loaded a save, which fetches the host's state again) goes to the
+// host, whatever it is doing. It used to be one attempt when the host's first position arrived,
+// skipped for good if the client was busy at that moment (talking, a cutscene of its own, the
+// file select), which left players stranded. Now it keeps trying every frame until it has gone:
+// - in my own conversation, cutscene or a stuck sync state: all of it is dropped, then I go;
+// - no character to move yet (title screen, file select, a room change): wait, then go at once;
+// - in a battle: wait for it to end (a fight can't be left halfway);
+// - already watching the host's cutscene, or the host is pulling me somewhere: that's being with
+//   the host, nothing more to do.
+function mp_join_warp_tick()
+{
+    if (!global.mp_need_warp)
+        return;
+    if (global.mp_role != 2 || global.mp_linkstate != 3)
     {
-        global.mp_need_warp = 0;
-        if (instance_exists(obj_mainchara) && global.mp_sstate == 0 && !mp_in_battle_scene())
-        {
-            // (On the Chapter 3 board the host's position is its board piece's: just go
-            // to the room and sit down where the game puts us.)
-            global.mp_warp_reenter = mp_dz_take((global.mp_pstate[0] & 64) != 0 ? 1 : 0);
-            if ((global.mp_pstate[0] & 48) != 0)
-            {
-                global.mp_warp_mus = 0;
-                mp_warp(global.mp_proom[0], -99999, 0, 0);
-            }
-            else
-            {
-                global.mp_warp_mus = 0;
-                mp_warp(global.mp_proom[0], global.mp_pix[0], global.mp_piy[0], 0);
-            }
-        }
+        if (global.mp_role != 2)
+            global.mp_need_warp = 0;
+        return;
     }
+    if (!global.mp_pconn[0] || global.mp_proom[0] < 0 || !mp_room_ok(global.mp_proom[0]))
+        return; // the host's position hasn't arrived yet (it's resent at least every 1.5 s)
+    if ((global.mp_sstate != 0 && global.mp_slead == 0) || (is_array(global.mp_pull) && global.mp_pull[1] == 0))
+    {
+        mp_log("join: already following the host");
+        global.mp_need_warp = 0;
+        return;
+    }
+    if ((global.mp_pstate[0] & 2) != 0)
+        return; // the host is in a cutscene: its pull brings me in
+    if (global.mp_warp_pending || global.mp_warp_delay > 0 || mp_credits_running() || mp_in_battle_scene() || instance_exists(obj_battlecontroller))
+        return;
+    if (global.mp_sstate != 0 || is_array(global.mp_pull) || global.interact != 0)
+    {
+        mp_log("join: dropping what I was doing to go to the host (sstate " + string(global.mp_sstate) + ", interact " + string(global.interact) + ")");
+        mp_unstick();
+    }
+    if (!instance_exists(obj_mainchara))
+        return;
+    global.mp_need_warp = 0;
+    var rm = global.mp_proom[0];
+    if (room == rm && point_distance(obj_mainchara.x, obj_mainchara.y, global.mp_pix[0], global.mp_piy[0]) < 60)
+    {
+        mp_log("join: already next to the host");
+        return;
+    }
+    mp_log("join: going to the host in " + room_get_name(rm));
+    global.mp_warp_reenter = mp_dz_take((global.mp_pstate[0] & 64) != 0 ? 1 : 0);
+    global.mp_warp_mus = 0;
+    // (On the Chapter 3 board the host's position is its board piece's: just go to the room
+    // and sit down where the game puts us.)
+    if ((global.mp_pstate[0] & 48) != 0)
+        mp_warp(rm, -99999, 0, 0);
+    else
+        mp_warp(rm, global.mp_pix[0], global.mp_piy[0], 0);
 }
 
 // ---------------------------------------------------------------- ghosts
@@ -647,6 +683,7 @@ function mp_world_tick()
 {
     mp_entry_tick();
     mp_join_tick();
+    mp_join_warp_tick();
     if (global.mp_battle_pulled && !mp_in_battle_scene())
         mp_kill_scenes();
     if (global.mp_warp_delay > 0)

@@ -602,7 +602,8 @@ namespace DeltaruneOnline
             {
                 int ch = chapters[i];
                 Report($"Patching Chapter {ch}...", $"{i + 1} of {chapters.Count}", (double)i / chapters.Count);
-                var input = Path.Combine(src, $"chapter{ch}_windows", "data.win");
+                var input = PatchSource(Path.Combine(src, $"chapter{ch}_windows"));
+                if (!input.EndsWith("data.win", StringComparison.OrdinalIgnoreCase)) Log($"chapter {ch}: the Steam data.win already has this mod (Deltamod?), patching {Path.GetFileName(input)}");
                 var output = Path.Combine(Game, $"chapter{ch}_windows", "data.win");
                 Directory.CreateDirectory(Path.GetDirectoryName(output));
                 int code;
@@ -651,6 +652,35 @@ namespace DeltaruneOnline
             Log($"patched version {AppVersion}: {done} chapters, {failed} failed");
         }
 
+        // The file to patch for a chapter: the game's own data.win, or, when a mod manager such as Deltamod
+        // has put this mod's modpack into the Steam folder, the original it kept as data.win.bak (patching
+        // an already patched file fails). Only then: after a Steam update data.win is new and .bak is stale.
+        static string PatchSource(string chapterDir)
+        {
+            var win = Path.Combine(chapterDir, "data.win");
+            var bak = Path.Combine(chapterDir, "data.win.bak");
+            try
+            {
+                if (File.Exists(bak) && HasThisMod(win) && !HasThisMod(bak)) return bak;
+            }
+            catch { }
+            return win;
+        }
+
+        static bool HasThisMod(string path)
+        {
+            var bytes = File.ReadAllBytes(path);
+            var marker = Encoding.ASCII.GetBytes("gml_GlobalScript_scr_mp_core");
+            for (int i = 0; i + marker.Length <= bytes.Length; i++)
+            {
+                if (bytes[i] != marker[0]) continue;
+                int k = 1;
+                while (k < marker.Length && bytes[i + k] == marker[k]) k++;
+                if (k == marker.Length) return true;
+            }
+            return false;
+        }
+
         public void ForgetPatch()
         {
             state["patched"] = "";
@@ -673,7 +703,8 @@ namespace DeltaruneOnline
             {
                 var rel = f.Substring(src.Length + 1);
                 wanted.Add(rel);
-                if (Path.GetFileName(rel).Equals("data.win", StringComparison.OrdinalIgnoreCase)) continue;
+                // (data.win is the patcher's; data.win.bak / .hash are a mod manager's backups.)
+                if (Path.GetFileName(rel).StartsWith("data.win", StringComparison.OrdinalIgnoreCase)) continue;
                 var fi = new FileInfo(f);
                 var di = new FileInfo(Path.Combine(Game, rel));
                 if (di.Exists && di.Length == fi.Length && di.LastWriteTimeUtc == fi.LastWriteTimeUtc) continue;
