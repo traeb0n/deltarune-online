@@ -375,10 +375,10 @@ function mp_ui_help()
         "It uses about 8 KB/s for each person talking.",
         "",
         "== PLAYING ONLINE ==",
-        "Everyone needs the same version of this mod. Mod version: " + string(global.mp_version),
+        "Everyone needs the same version of this mod (the launcher keeps it updated). Network version: " + string(global.mp_version),
         "The host chooses 'Host a game', and needs UDP port " + string(global.mp_cfg_port) + " open.",
         "Everyone else enters the host's address under 'Host address', then Join.",
-        "Over Hamachi or similar, use the host's address from that program.",
+        "No router access? Use Radmin VPN, ZeroTier or Tailscale and the host's address there.",
         "",
         "== IF YOU GET STUCK ==",
         "Press F8 twice to go to another player.",
@@ -387,6 +387,7 @@ function mp_ui_help()
         "This mod keeps its own save files, so your normal saves stay untouched.",
         "",
         "== CREDITS ==",
+        "DELTARUNE Online by traebon. github.com/traeb0n/deltarune-online",
         "Built on DELTARUNE Multiplayer by AeEn123AI (GPL-3.0).",
         "DELTARUNE is by Toby Fox. You need your own copy of the game."
     ];

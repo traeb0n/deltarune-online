@@ -6,6 +6,12 @@ By traebon. Based on [DELTARUNE Multiplayer](https://github.com/AeEn123AI/deltar
 > tested by a human. Expect rough edges and bugs, and please don't treat the code as hand-audited.
 > It contains no DELTARUNE game files: the patcher modifies *your own* copy of the game.
 
+## Download
+
+**[Download DeltaruneOnline-Setup.exe](https://github.com/traeb0n/deltarune-online/releases/latest/download/DeltaruneOnline-Setup.exe)** (Windows 10/11, needs DELTARUNE on Steam).
+Open it and click **INSTALL**. It updates itself from then on. See [Installing](#installing) and [Playing](#playing).
+All versions are on the [Releases page](https://github.com/traeb0n/deltarune-online/releases).
+
 Online (network) co-op multiplayer for DELTARUNE Chapters 1–5, each player on their own PC, in the style of Block Tales' multiplayer:
 
 * **Pick a party member.** Each player plays as Kris, Susie, Ralsei or (Chapter 2+) Noelle.
@@ -76,7 +82,7 @@ Proximity voice: you hear players in the same room, quieter with distance. Push 
 
 You need DELTARUNE on Windows (the Steam version with `chapter1_windows` ... folders). Every player needs the mod, at the same version.
 
-Download `DELTARUNE Online.exe`, open it and click **INSTALL** (if SmartScreen warns, choose More info, then Run anyway: the exe isn't signed). It finds your Steam copy, copies it to `%LOCALAPPDATA%\DeltaruneOnline\game` and patches the copy, so your Steam copy is never changed. Saves are kept in `%LOCALAPPDATA%\DELTARUNE_ONLINE`, apart from your normal ones. Start the game from the **DELTARUNE Online** shortcut: every time it opens it installs any new version, and it patches again by itself after a Steam update. Uninstall is at the bottom of its window. The launcher's source is in `launcher/`.
+Download `DeltaruneOnline-Setup.exe` from the [latest release](https://github.com/traeb0n/deltarune-online/releases/latest), open it and click **INSTALL** (if SmartScreen warns, choose More info, then Run anyway: the exe isn't signed). It finds your Steam copy, copies it to `%LOCALAPPDATA%\DeltaruneOnline\game` and patches the copy, so your Steam copy is never changed. Saves are kept in `%LOCALAPPDATA%\DELTARUNE_ONLINE`, apart from your normal ones. Start the game from the **DELTARUNE Online** shortcut: every time it opens it installs any new version, and it patches again by itself after a Steam update. Uninstall is at the bottom of its window. The launcher's source is in `launcher/`.
 
 The older in-place `drm-patcher install` command still exists.
 
@@ -173,8 +179,15 @@ mod/gml/      new code: scr_mp_net (transport), scr_mp_core, scr_mp_world (ghost
               obj_mp_ghost
 mod/hooks/    small edits to the game's own code (see core.hook)
 patcher/      drm-patcher: compiles the mod into a chapter's data.win (UndertaleModLib)
-tools/        test harness: run several game instances under Wine + Xvfb
+launcher/     DELTARUNE Online.exe: installer, updater and launcher (WinForms, .NET Framework 4.8)
+installer/    update.txt (where the launcher looks for releases) and the package's READ ME FIRST.txt
+tools/        test harness: game instances under Wine + Xvfb (*.sh, *.py) or on Windows (*.ps1)
 ```
+
+The launcher builds with `dotnet build launcher/Launcher.csproj -c Release` and needs nothing
+installed to run. `installer/update.txt` is built into it: a list of update sources, first choice
+first (a GitHub repository whose latest release has `latest.txt` and `DeltaruneOnline-v<N>.zip`,
+or a public Google Drive folder). It installs the highest version any source offers.
 
 Building the patcher needs the .NET 10 SDK and an UndertaleModTool checkout
 (`-p:UTMTRoot=...`, default `~/tools/UndertaleModTool`). The patcher's other commands are:

@@ -7,7 +7,8 @@ Double-click "DELTARUNE Online.exe" and press INSTALL. It copies your game to a 
 folder and patches the copy (about 1 GB, a few minutes). Your Steam copy and normal saves
 are never changed. Afterwards, start it from the "DELTARUNE Online" shortcut on your desktop.
 If Windows SmartScreen warns about an unknown app, that's because this isn't signed:
-choose More info, then Run anyway, only if you trust the person who sent you this.
+choose More info, then Run anyway. Download it only from
+https://github.com/traeb0n/deltarune-online (or the mod's GameBanana page).
 
 UPDATES
 Every time you open DELTARUNE Online it checks for a new version and installs it by itself.
@@ -16,8 +17,9 @@ It also patches the game again by itself when Steam updates DELTARUNE.
 PLAY
 1. Everyone opens DELTARUNE Online, picks the same chapter, and starts or loads a file.
 2. Press F9 in game. Controls & info and Settings are in that menu.
-3. The host chooses "Host a game". The host needs UDP port 26510 open on their router
-   (or use a program like Hamachi, which needs no router change).
+3. The host chooses "Host a game". The host needs UDP port 26510 forwarded on their router.
+   No router access? Everyone installs a free virtual network program (Radmin VPN, ZeroTier
+   or Tailscale), joins the same network, and uses the host's address from that program.
 4. Everyone else sets "Host address" to the host's address, then chooses "Join game".
 
 SAVES
@@ -28,6 +30,8 @@ UNINSTALL
 Open DELTARUNE Online and click Uninstall at the bottom. Your mod saves are kept.
 
 LICENSE
-Free software under the GPL-3.0 (see LICENSE), based on DELTARUNE Multiplayer by AeEn123AI.
-The source code is in the "mod", "patcher-src" and "launcher-src" folders.
+DELTARUNE Online by traebon. Free software under the GPL-3.0 (see LICENSE),
+based on DELTARUNE Multiplayer by AeEn123AI. Made with AI assistance (Claude Code).
+The source code is in the "mod", "patcher-src" and "launcher-src" folders, and at
+https://github.com/traeb0n/deltarune-online
 DELTARUNE is made by Toby Fox. This is an unofficial fan project.
