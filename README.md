@@ -12,6 +12,18 @@ By traebon. Based on [DELTARUNE Multiplayer](https://github.com/AeEn123AI/deltar
 Open it and click **INSTALL**. It updates itself from then on. See [Installing](#installing) and [Playing](#playing).
 All versions are on the [Releases page](https://github.com/traeb0n/deltarune-online/releases).
 
+## Screenshots
+
+![Three players dodging in a Chapter 5 battle, each with their own SOUL](docs/screenshots/01_ch5_three_player_battle.png)
+
+![Three players exploring Chapter 5 together](docs/screenshots/02_ch5_exploring_together.png)
+
+![The Roaring Knight with three players](docs/screenshots/03_ch3_roaring_knight.png)
+
+![Three players' screens at the same moment of a Chapter 5 cutscene](docs/screenshots/10_three_screens_same_cutscene.png)
+
+More in [docs/screenshots](docs/screenshots).
+
 Online (network) co-op multiplayer for DELTARUNE Chapters 1–5, each player on their own PC, in the style of Block Tales' multiplayer:
 
 * **Pick a party member.** Each player plays as Kris, Susie, Ralsei or (Chapter 2+) Noelle.

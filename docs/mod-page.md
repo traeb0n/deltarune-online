@@ -1,6 +1,6 @@
 # Mod page text (GameBanana and other sites)
 
-Paste the parts below into the site's fields. [BRACKETS] are things to fill in.
+Paste the parts below into the site's fields. Screenshots are in `docs/screenshots` (01 is the best thumbnail).
 
 ---
 
@@ -37,7 +37,7 @@ Play all of DELTARUNE together online: each friend controls a party member, dodg
 
 ## Installation
 
-1. Download **DELTARUNE Online.exe** and open it.
+1. Download **DeltaruneOnline-Setup.exe** (from this page or https://github.com/traeb0n/deltarune-online/releases/latest) and open it.
    Windows may say "Windows protected your PC" because the app isn't signed. Click **More info**, then **Run anyway**.
 2. Click **INSTALL**. It finds your Steam copy of DELTARUNE, copies it to a separate folder and patches the copy (about 1 GB, a minute or two).
 3. From then on, start the game from the **DELTARUNE Online** shortcut on your desktop. It checks for updates every time you open it.
@@ -68,9 +68,9 @@ Saves are kept separately in `%LOCALAPPDATA%\DELTARUNE_ONLINE`. To use your norm
 
 ## Known issues (this is a beta)
 
-- Story cutscene syncing has mostly been tested in Chapter 2. Scenes in other chapters, scenes with choices, and scenes that move between rooms may act up. F8 and the softlock tools in the F9 menu help if you get stuck.
+- Story cutscene syncing has been tested in Chapters 2, 3 and 5. Scenes with choices and scenes that move between rooms may act up. F8 and the softlock tools in the F9 menu help if you get stuck.
 - Cutscenes started by pressing Z on something only play for the player who did it (the story progress still syncs).
-- Bosses with heavily scripted fights haven't all been played through in multiplayer.
+- Bosses with heavily scripted fights haven't all been played through in multiplayer. **The Roaring Knight fight (end of Chapter 3) can freeze after the first turn** with "... is choosing" on every screen; a fix is being worked on.
 - Bullet patterns can differ a little between players after the first hit.
 - Platforming sections show everyone as Kris.
 - If the host leaves, the session ends.
@@ -80,10 +80,10 @@ Saves are kept separately in `%LOCALAPPDATA%\DELTARUNE_ONLINE`. To use your norm
 ## Credits
 
 - **traebon**: DELTARUNE Online
-- **AeEn123AI**: original DELTARUNE Multiplayer mod, which this is based on (GPL-3.0) [link]
+- **AeEn123AI**: original DELTARUNE Multiplayer mod, which this is based on (GPL-3.0): https://github.com/AeEn123AI/deltarune-multiplayer
 - **UnderminersTeam**: UndertaleModTool, used to patch the game
 - **Toby Fox**: DELTARUNE
 
-Made with AI assistance (Claude Code). Free software under the GPL-3.0; source code: [link].
+Made with AI assistance (Claude Code). Free software under the GPL-3.0; source code: https://github.com/traeb0n/deltarune-online
 
 Unofficial fan project, not affiliated with Toby Fox or the DELTARUNE team.

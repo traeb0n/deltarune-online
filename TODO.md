@@ -3,6 +3,17 @@
 Sorted by priority. Effort: S = small, M = medium, L = large.
 Port forwarding (UDP 26510) stays the way to play online; no relay server.
 
+## Roaring Knight fight (Chapter 3, encounter 115), found 2026-11-08 while taking screenshots
+
+Tested with 3 bot players: room_dw_snow_zone, plot 320, the host walks to x 1850 and the scene plays.
+* **Fixed:** players mirroring the cutscene ignored the battle pull at its end (mirroring switches off
+  obj_mainchara, and mp_sync_try_pull took that for the title screen and declined). They join now.
+* **Open:** after turn 0 the fight freezes. At turn 1 the host's menu starts at Susie (no menu presses
+  sent for Kris) while the others wait at Kris, so every screen says "... is choosing". Starting
+  encounter 115 directly (no cutscene) freezes the same way. Look at what skips Kris in the host's game.
+* **Open:** the joining players still see the scene's Christmas tree on the left during the battle
+  (their room was rebuilt from before the cutscene removed it).
+
 * F7 / "Stop all music and sounds" (F9 menu): `audio_stop_all()`, for when the music desyncs; rooms start their song again on the next room entry (2026-10-11).
 
 ## User test report 6 (Chapter 1 battle loop with Rudinn), 2026-10-14

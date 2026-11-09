@@ -610,7 +610,9 @@ function mp_sync_try_pull()
             global.mp_pull = -1;
         return;
     }
-    if (!instance_exists(obj_mainchara))
+    // (While mirroring a cutscene my character is switched off, but I can still be pulled: a story
+    // battle that the cutscene starts, like the Roaring Knight's, must take me along.)
+    if (!instance_exists(obj_mainchara) && global.mp_sstate != 5)
     {
         // Title screen / file select: cannot be pulled yet.
         if (kind == 1 && global.mp_pull[7] == 0)
