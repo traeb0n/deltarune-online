@@ -6,7 +6,7 @@ namespace DeltaruneOnline
 {
     static class Flow
     {
-        // First install: the newest version (from the update folder, or the unzipped download it was started
+        // First install: the newest version (from the update source, or the unzipped download it was started
         // from), the launcher in its place, shortcuts, then the patched game copy. Returns a note for the Ready screen.
         public static string Install(Core core)
         {
@@ -14,12 +14,12 @@ namespace DeltaruneOnline
             Release newest = null;
             string offline = null;
             try { newest = core.Newest(); }
-            catch (Exception e) { offline = e.Message; core.Log("update folder: " + e.Message); }
+            catch (Exception e) { offline = e.Message; core.Log("update check: " + e.Message); }
             var local = Core.LocalPackage();
             if (local != null && (newest == null || Core.ReadVersion(local) >= newest.Version)) core.InstallFolder(local);
             else if (newest != null) core.InstallRelease(newest);
-            else if (offline != null) throw new Exception("Couldn't reach the update folder: " + offline + ". Check your internet connection.");
-            else throw new Exception("The update folder has no DeltaruneOnline zip in it yet. Ask whoever sent you this.");
+            else if (offline != null) throw new Exception("Couldn't download the mod: " + offline + ". Check your internet connection.");
+            else throw new Exception("No version of the mod is online yet.");
             core.PlaceLauncher();
             core.CreateShortcuts();
             core.PatchGame();

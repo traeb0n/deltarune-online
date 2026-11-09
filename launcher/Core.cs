@@ -1,4 +1,4 @@
-// Everything the launcher does that isn't drawing: find the game, check the shared update folder,
+// Everything the launcher does that isn't drawing: find the game, check for updates (GitHub, Google Drive),
 // download and install new versions, copy and patch the game, shortcuts, uninstall.
 using System;
 using System.Collections.Generic;
@@ -20,8 +20,12 @@ namespace DeltaruneOnline
     {
         public string Name;
         public int Version;
-        public string Id;     // Google Drive file id
+        public string Url;    // a direct download (GitHub release)
+        public string Id;     // or a Google Drive file id
         public string Path;   // or a local file (testing)
+        public string Feed;   // the update source that listed it
+        public int Rank;      // that source's place in update.txt (0 = first choice)
+        public List<Release> Alternates = new List<Release>();   // the same version from other sources
     }
 
     class Core
@@ -193,31 +197,34 @@ namespace DeltaruneOnline
 
         // ---------- updates ----------
 
-        // The shared folder: DRO_FEED (testing), then the installed package's update.txt, then the one built in.
-        public string Feed()
+        // Where updates come from, in order of preference: DRO_FEED (testing, several separated by |),
+        // then the installed package's update.txt, then the one built into the exe.
+        // A source is a GitHub repository (its latest release), a public Google Drive folder, or a local folder.
+        public List<string> Feeds()
         {
             var env = Environment.GetEnvironmentVariable("DRO_FEED");
-            if (!string.IsNullOrEmpty(env)) return env;
-            string text = null;
+            if (!string.IsNullOrEmpty(env)) return env.Split('|').Select(s => s.Trim()).Where(s => s != "").ToList();
             var f = Path.Combine(App, "update.txt");
-            if (File.Exists(f)) text = File.ReadAllText(f);
-            string link = FirstLink(text);
-            if (link != null) return link;
+            if (File.Exists(f))
+            {
+                var links = Links(File.ReadAllText(f));
+                if (links.Count > 0) return links;
+            }
             using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("update.txt"))
-                if (s != null) using (var r = new StreamReader(s)) return FirstLink(r.ReadToEnd());
-            return null;
+                if (s != null) using (var r = new StreamReader(s)) return Links(r.ReadToEnd());
+            return new List<string>();
         }
 
-        static string FirstLink(string text)
+        static List<string> Links(string text)
         {
-            if (text == null) return null;
+            var list = new List<string>();
             foreach (var raw in text.Split('\n'))
             {
                 var l = raw.Trim();
                 if (l == "" || l.StartsWith("#")) continue;
-                if (l.Contains("drive.google.com") || Directory.Exists(l)) return l;
+                if (l.Contains("github.com/") || l.Contains("drive.google.com") || Directory.Exists(l)) list.Add(l);
             }
-            return null;
+            return list;
         }
 
         static HttpWebRequest Request(string url)
@@ -236,24 +243,59 @@ namespace DeltaruneOnline
                 return r.ReadToEnd();
         }
 
-        // Every DeltaruneOnline-v<N>.zip in the shared folder.
+        static readonly Regex NameRx = new Regex(@"^DeltaruneOnline-v(\d+)\.zip$", RegexOptions.IgnoreCase);
+
+        // Every DeltaruneOnline-v<N>.zip any update source offers. A source that can't be reached is
+        // skipped, so one being down (or Google Drive's download limit) doesn't stop updates.
         public List<Release> ListReleases()
         {
-            var feed = Feed();
-            if (feed == null) throw new Exception("this launcher has no update folder set");
+            var feeds = Feeds();
+            if (feeds.Count == 0) throw new Exception("this launcher has no update source set");
             var list = new List<Release>();
-            var nameRx = new Regex(@"^DeltaruneOnline-v(\d+)\.zip$", RegexOptions.IgnoreCase);
+            Exception first = null;
+            for (int i = 0; i < feeds.Count; i++)
+            {
+                try
+                {
+                    foreach (var r in ListFeed(feeds[i])) { r.Feed = feeds[i]; r.Rank = i; list.Add(r); }
+                }
+                catch (Exception e)
+                {
+                    Log($"update source {feeds[i]}: {e.Message}");
+                    if (first == null) first = e;
+                }
+            }
+            if (list.Count == 0 && first != null) throw first;
+            return list;
+        }
+
+        static List<Release> ListFeed(string feed)
+        {
+            var list = new List<Release>();
             if (Directory.Exists(feed))
             {
                 foreach (var f in Directory.GetFiles(feed, "DeltaruneOnline-v*.zip"))
                 {
-                    var m = nameRx.Match(Path.GetFileName(f));
+                    var m = NameRx.Match(Path.GetFileName(f));
                     if (m.Success) list.Add(new Release { Name = Path.GetFileName(f), Version = int.Parse(m.Groups[1].Value), Path = f });
                 }
                 return list;
             }
+            var gh = Regex.Match(feed, @"github\.com/([\w.-]+)/([\w.-]+)");
+            if (gh.Success)
+            {
+                // The latest release carries latest.txt naming its zip. These links aren't the GitHub API,
+                // so there is no hourly request limit.
+                var repo = Regex.Replace(gh.Groups[2].Value, @"\.git$", "");
+                var basis = $"https://github.com/{gh.Groups[1].Value}/{repo}/releases/latest/download/";
+                var name = GetText(basis + "latest.txt").Split('\n')[0].Trim();
+                var m = NameRx.Match(name);
+                if (!m.Success) throw new Exception("GitHub's latest release doesn't name a DeltaruneOnline zip");
+                list.Add(new Release { Name = name, Version = int.Parse(m.Groups[1].Value), Url = basis + name });
+                return list;
+            }
             var id = Regex.Match(feed, @"(?:folders/|[?&]id=)([\w-]{10,})");
-            if (!id.Success) throw new Exception("the update link isn't a Google Drive folder link");
+            if (!id.Success) throw new Exception("the update link isn't a GitHub or Google Drive link");
             // A public folder's file list, no sign-in needed.
             var html = GetText("https://drive.google.com/embeddedfolderview?id=" + id.Groups[1].Value);
             var entries = Regex.Matches(html, "id=\"entry-([\\w-]+)\"");
@@ -263,13 +305,21 @@ namespace DeltaruneOnline
                 int end = i + 1 < entries.Count ? entries[i + 1].Index : html.Length;
                 var t = Regex.Match(html.Substring(start, end - start), "flip-entry-title\">([^<]+)<");
                 if (!t.Success) continue;
-                var m = nameRx.Match(WebUtility.HtmlDecode(t.Groups[1].Value).Trim());
+                var m = NameRx.Match(WebUtility.HtmlDecode(t.Groups[1].Value).Trim());
                 if (m.Success) list.Add(new Release { Name = m.Value, Version = int.Parse(m.Groups[1].Value), Id = entries[i].Groups[1].Value });
             }
             return list;
         }
 
-        public Release Newest() => ListReleases().OrderBy(r => r.Version).LastOrDefault();
+        // The highest version, from the first source in update.txt that has it; the others are fallbacks.
+        public Release Newest()
+        {
+            var all = ListReleases().OrderByDescending(r => r.Version).ThenBy(r => r.Rank).ToList();
+            if (all.Count == 0) return null;
+            var best = all[0];
+            best.Alternates = all.Skip(1).Where(r => r.Version == best.Version).ToList();
+            return best;
+        }
 
         static bool IsZip(string path)
         {
@@ -301,9 +351,31 @@ namespace DeltaruneOnline
             }
         }
 
+        // Tries the release's own source first, then the same version from the other sources.
         public void Download(Release rel, string outPath, string what)
         {
+            Exception last = null;
+            foreach (var r in new[] { rel }.Concat(rel.Alternates))
+            {
+                try { DownloadOne(r, outPath, what); return; }
+                catch (Exception e)
+                {
+                    last = e;
+                    Log($"download {r.Name} from {r.Feed}: {e.Message}");
+                }
+            }
+            throw last;
+        }
+
+        void DownloadOne(Release rel, string outPath, string what)
+        {
             if (rel.Path != null) { File.Copy(rel.Path, outPath, true); return; }
+            if (rel.Url != null)
+            {
+                DownloadTo(rel.Url, outPath, what);
+                if (!IsZip(outPath)) throw new Exception("the download isn't a zip file");
+                return;
+            }
             DownloadTo($"https://drive.usercontent.google.com/download?id={rel.Id}&export=download&confirm=t", outPath, what);
             if (IsZip(outPath)) return;
             // Big files get a "can't scan for viruses" page first: submit its form to get the file.

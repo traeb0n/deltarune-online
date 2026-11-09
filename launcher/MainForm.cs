@@ -453,7 +453,7 @@ namespace DeltaruneOnline
             Shot("busy_copy", Screen.Busy, () => core.Report("Copying the game...", "412 of 1034 MB  (your Steam copy is left alone)", 0.4));
             Shot("busy_check", Screen.Busy, () => core.Report("Checking for updates...", "", -1));
             Shot("ready", Screen.Ready, () => f.note = "Updated to version 11.");
-            Shot("error", Screen.Error, () => f.error = "Couldn't reach the update folder: The remote name could not be resolved: 'drive.google.com'. Check your internet connection.");
+            Shot("error", Screen.Error, () => f.error = "Couldn't download the mod: The remote name could not be resolved: 'github.com'. Check your internet connection.");
             Shot("starting", Screen.Starting);
         }
     }
