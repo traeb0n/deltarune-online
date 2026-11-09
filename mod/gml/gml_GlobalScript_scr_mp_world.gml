@@ -1027,6 +1027,29 @@ function mp_var_local_only(v, i)
     return global.mp_vname[v] == "flag" && i < 60;
 }
 
+// The connection of player pid (host side), or undefined.
+function mp_peer_of_pid(pid)
+{
+    var k = ds_map_find_first(global.mp_peers);
+    while (!is_undefined(k))
+    {
+        var p = ds_map_find_value(global.mp_peers, k);
+        if (is_struct(p) && variable_struct_exists(p, "pid") && p.pid == pid)
+            return p;
+        k = ds_map_find_next(global.mp_peers, k);
+    }
+    return undefined;
+}
+
+// Prepended to scr_gamestart: a new file (or the reset before a load) wipes the story state.
+// Like loading a save, it must not be broadcast: a client fetches the host's state instead.
+function mp_on_game_reset()
+{
+    if (!variable_global_exists("mp_inited"))
+        return;
+    global.mp_loaded = 1;
+}
+
 // Prepended to scr_load: a save was just loaded.
 function mp_on_save_loaded()
 {
@@ -1267,11 +1290,44 @@ function mp_vars_recv(pid, b)
     // same thing at once (e.g. both finishing a cutscene) end up with the same value.
     var echo = global.mp_role == 1 && pid != 0 && mode == 0;
     var got = [];
-    var v = buffer_read(b, buffer_u8);
-    while (v != 255)
+    var ents = [];
+    var v0 = buffer_read(b, buffer_u8);
+    while (v0 != 255)
     {
-        var idx = buffer_read(b, buffer_u16);
-        var val = mp_rval(b);
+        var idx0 = buffer_read(b, buffer_u16);
+        array_push(ents, [v0, idx0, mp_rval(b)]);
+        v0 = buffer_read(b, buffer_u8);
+    }
+    // A client whose game was reset (a new file, a save from earlier in the story, the title
+    // screen) sends its whole blank state: story progress far back, empty flags, a party of just
+    // Kris. Taking any of it breaks the host's world (a cutscene that needs Susie crashed when she
+    // vanished from the party), so the whole batch is refused and that player gets the host's state.
+    if (echo)
+    {
+        if (!variable_global_exists("mp_vreset_until"))
+            global.mp_vreset_until = array_create(8, 0);
+        if (current_time < global.mp_vreset_until[pid])
+            return;
+        for (var e0 = 0; e0 < array_length(ents); e0++)
+        {
+            var en = ents[e0];
+            if (en[0] < global.mp_vcount && global.mp_vname[en[0]] == "plot" && is_real(en[2]) && variable_global_exists("plot") && is_real(global.plot)
+                && en[2] < global.plot && (en[2] == 0 || global.plot - en[2] > 25))
+            {
+                mp_log("refused a reset from " + global.mp_pname[pid] + " (plot " + string(en[2]) + ", mine " + string(global.plot) + "): sending them my state");
+                global.mp_vreset_until[pid] = current_time + 3000;
+                var peer = mp_peer_of_pid(pid);
+                if (is_struct(peer))
+                    mp_vars_send_full(peer);
+                return;
+            }
+        }
+    }
+    for (var e1 = 0; e1 < array_length(ents); e1++)
+    {
+        var v = ents[e1][0];
+        var idx = ents[e1][1];
+        var val = ents[e1][2];
         if (v < global.mp_vcount)
         {
             var took = true;
@@ -1282,7 +1338,6 @@ function mp_vars_recv(pid, b)
             if (echo && took)
                 array_push(got, [v, idx, val]);
         }
-        v = buffer_read(b, buffer_u8);
     }
     if (echo && array_length(got) > 0)
     {

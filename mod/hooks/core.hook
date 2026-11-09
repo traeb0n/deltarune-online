@@ -141,6 +141,14 @@ $1
     mp_on_save_loaded();
 @end
 
+;; A new file resets the story state: that must not be broadcast either.
+@regex gml_GlobalScript_scr_gamestart
+(function scr_gamestart\([^)]*\)\s*\{)
+@with
+$1
+    mp_on_game_reset();
+@end
+
 ;; A party wipe in one game is a party wipe for everyone in that battle.
 @regex gml_GlobalScript_scr_gameover
 (function scr_gameover\([^)]*\)\s*\{)
